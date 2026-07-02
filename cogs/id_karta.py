@@ -2,10 +2,14 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
-# ID čísla tvého serveru
+# Tvoje ID z HLAVNÍHO serveru
 KANAL_ID = 1394695582760571070
 ROLE_IMIGRANT_ID = 1394695578801148018
 ROLE_OBCAN_ID = 1394695578801148019
+
+# Tvoje ID z MDT serveru
+MDT_SERVER_ID = 1453744303691137045  # ID celého MDT serveru
+MDT_FORUM_ID = 1453745209643896933   # ID toho FORUM kanálu (místo kategorie)
 
 class IDModal(discord.ui.Modal):
     def __init__(self, cislo_postavy):
@@ -29,10 +33,33 @@ class IDModal(discord.ui.Modal):
         embed = discord.Embed(title=f"ID Karta - Postava {self.cislo_postavy}", description=popis, color=discord.Color.blue())
         embed.set_footer(text="CaliCore DMV System | Los Angeles")
 
+        # 1. Odeslání na hlavní server
         kanal = interaction.guild.get_channel(KANAL_ID)
         if kanal:
             await kanal.send(embed=embed)
+            
+        # 2. PROPOJENÍ NA MDT SERVER (Vytvoření příspěvku ve fóru)
+        mdt_server = interaction.client.get_guild(MDT_SERVER_ID)
+        if mdt_server:
+            forum_kanal = mdt_server.get_channel(MDT_FORUM_ID)
+            
+            # Zkontrolujeme, jestli to ID opravdu patří Forum kanálu
+            if isinstance(forum_kanal, discord.ForumChannel):
+                try:
+                    # Bot vytvoří nový příspěvek, název bude RP jméno a rovnou tam pošle tu ID kartu
+                    await forum_kanal.create_thread(
+                        name=self.rp_jmeno.value, 
+                        content=f"Složka občana: **{self.rp_jmeno.value}**",
+                        embed=embed
+                    )
+                except discord.Forbidden:
+                    print("CaliCore nemá oprávnění tvořit příspěvky ve fóru.")
+            else:
+                print("Zadané MDT_FORUM_ID nepatří Forum kanálu!")
+        else:
+            print("CaliCore nenašel MDT server.")
         
+        # 3. Změna přezdívky
         nova_prezdivka = f"{self.rp_jmeno.value} | {self.roblox_nick.value}"
         if len(nova_prezdivka) > 32:
             nova_prezdivka = nova_prezdivka[:32]
@@ -42,6 +69,7 @@ class IDModal(discord.ui.Modal):
         except discord.Forbidden:
             pass 
 
+        # 4. Úprava rolí
         if self.cislo_postavy == 1:
             role_obcan = interaction.guild.get_role(ROLE_OBCAN_ID)
             role_imigrant = interaction.guild.get_role(ROLE_IMIGRANT_ID)
@@ -53,9 +81,8 @@ class IDModal(discord.ui.Modal):
             except discord.Forbidden:
                 pass
 
-        await interaction.response.send_message("Tvá ID Karta byla úspěšně vytvořena!", ephemeral=True)
+        await interaction.response.send_message("Tvá ID Karta byla úspěšně vytvořena a složka v MDT založena!", ephemeral=True)
 
-# Tato třída obaluje command do modulu (Cog)
 class IDKartaCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -69,6 +96,5 @@ class IDKartaCog(commands.Cog):
     async def id_command(self, interaction: discord.Interaction, postava: app_commands.Choice[int]):
         await interaction.response.send_modal(IDModal(cislo_postavy=postava.value))
 
-# Základní funkce, kterou Discord potřebuje k načtení tohoto souboru
 async def setup(bot):
     await bot.add_cog(IDKartaCog(bot))
