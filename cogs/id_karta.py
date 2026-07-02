@@ -1,0 +1,74 @@
+import discord
+from discord.ext import commands
+from discord import app_commands
+
+# ID čísla tvého serveru
+KANAL_ID = 1394695582760571070
+ROLE_IMIGRANT_ID = 1394695578801148018
+ROLE_OBCAN_ID = 1394695578801148019
+
+class IDModal(discord.ui.Modal):
+    def __init__(self, cislo_postavy):
+        super().__init__(title=f"Vytvoření postavy {cislo_postavy}")
+        self.cislo_postavy = cislo_postavy
+
+    roblox_nick = discord.ui.TextInput(label="Roblox nick", placeholder="Roblox nick, ne display nick", required=True)
+    rp_jmeno = discord.ui.TextInput(label="Jméno a Příjmení (v RP)", placeholder="Např. Oliver Brown", required=True)
+    datum_narozeni = discord.ui.TextInput(label="Datum narození", placeholder="Např. 15/08/1995", required=True)
+    misto_narozeni = discord.ui.TextInput(label="Místo narození", placeholder="Např. Los Angeles, CA", required=True)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        popis = (
+            f"{interaction.user.mention}\n\n"
+            f"**Roblox nick:** {self.roblox_nick.value}\n"
+            f"**Jméno a Příjmení:** {self.rp_jmeno.value}\n"
+            f"**Datum narození:** {self.datum_narozeni.value}\n"
+            f"**Místo narození:** {self.misto_narozeni.value}"
+        )
+
+        embed = discord.Embed(title=f"ID Karta - Postava {self.cislo_postavy}", description=popis, color=discord.Color.blue())
+        embed.set_footer(text="CaliCore DMV System | Los Angeles")
+
+        kanal = interaction.guild.get_channel(KANAL_ID)
+        if kanal:
+            await kanal.send(embed=embed)
+        
+        nova_prezdivka = f"{self.rp_jmeno.value} | {self.roblox_nick.value}"
+        if len(nova_prezdivka) > 32:
+            nova_prezdivka = nova_prezdivka[:32]
+        
+        try:
+            await interaction.user.edit(nick=nova_prezdivka)
+        except discord.Forbidden:
+            pass 
+
+        if self.cislo_postavy == 1:
+            role_obcan = interaction.guild.get_role(ROLE_OBCAN_ID)
+            role_imigrant = interaction.guild.get_role(ROLE_IMIGRANT_ID)
+            try:
+                if role_obcan:
+                    await interaction.user.add_roles(role_obcan)
+                if role_imigrant:
+                    await interaction.user.remove_roles(role_imigrant)
+            except discord.Forbidden:
+                pass
+
+        await interaction.response.send_message("Tvá ID Karta byla úspěšně vytvořena!", ephemeral=True)
+
+# Tato třída obaluje command do modulu (Cog)
+class IDKartaCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @app_commands.command(name="id", description="Vytvoř si kalifornský průkaz pro svou postavu.")
+    @app_commands.describe(postava="Vyber, kterou postavu chceš upravit/vytvořit")
+    @app_commands.choices(postava=[
+        app_commands.Choice(name="Postava 1", value=1),
+        app_commands.Choice(name="Postava 2", value=2)
+    ])
+    async def id_command(self, interaction: discord.Interaction, postava: app_commands.Choice[int]):
+        await interaction.response.send_modal(IDModal(cislo_postavy=postava.value))
+
+# Základní funkce, kterou Discord potřebuje k načtení tohoto souboru
+async def setup(bot):
+    await bot.add_cog(IDKartaCog(bot))
