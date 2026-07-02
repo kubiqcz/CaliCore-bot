@@ -97,4 +97,3 @@ class IDKartaCog(commands.Cog):
         await interaction.response.send_modal(IDModal(cislo_postavy=postava.value))
 
 async def setup(bot):
-    await bot.add_cog(IDKartaCog(bot))
