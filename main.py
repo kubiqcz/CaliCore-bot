@@ -23,11 +23,6 @@ bot = CaliCore()
 async def on_ready():
     print(f'Přihlášen jako {bot.user}!')
 
-# Nechali jsme tu jen kontrolní /ping, ať víme, že motor šlape
-@bot.tree.command(name="ping", description="Zkontroluje, jestli CaliCore žije.")
-async def ping(interaction: discord.Interaction):
-    await interaction.response.send_message("Pong! CaliCore je online a připraven.")
-
 keep_alive()
 
 token = os.environ.get("DISCORD_TOKEN")
