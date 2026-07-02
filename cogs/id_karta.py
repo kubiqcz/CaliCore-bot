@@ -7,14 +7,13 @@ KANAL_ID = 1394695582760571070
 ROLE_IMIGRANT_ID = 1394695578801148018
 ROLE_OBCAN_ID = 1394695578801148019
 
-# Tvoje ID z MDT serveru
+# Tvoje ID z MDT serveru (DOPLŇ SI SVÁ ČÍSLA)
 MDT_SERVER_ID = 1453744303691137045  # ID celého MDT serveru
-MDT_FORUM_ID = 1453745209643896933   # ID toho FORUM kanálu (místo kategorie)
+MDT_FORUM_ID = 1453745209643896933   # ID toho FORUM kanálu
 
 class IDModal(discord.ui.Modal):
-    def __init__(self, cislo_postavy):
-        super().__init__(title=f"Vytvoření postavy {cislo_postavy}")
-        self.cislo_postavy = cislo_postavy
+    def __init__(self):
+        super().__init__(title="Vytvoření postavy")
 
     roblox_nick = discord.ui.TextInput(label="Roblox nick", placeholder="Roblox nick, ne display nick", required=True)
     rp_jmeno = discord.ui.TextInput(label="Jméno a Příjmení (v RP)", placeholder="Např. Oliver Brown", required=True)
@@ -30,7 +29,7 @@ class IDModal(discord.ui.Modal):
             f"**Místo narození:** {self.misto_narozeni.value}"
         )
 
-        embed = discord.Embed(title=f"ID Karta - Postava {self.cislo_postavy}", description=popis, color=discord.Color.blue())
+        embed = discord.Embed(title="ID Karta", description=popis, color=discord.Color.blue())
         embed.set_footer(text="CaliCore DMV System | Los Angeles")
 
         # 1. Odeslání na hlavní server
@@ -43,10 +42,8 @@ class IDModal(discord.ui.Modal):
         if mdt_server:
             forum_kanal = mdt_server.get_channel(MDT_FORUM_ID)
             
-            # Zkontrolujeme, jestli to ID opravdu patří Forum kanálu
             if isinstance(forum_kanal, discord.ForumChannel):
                 try:
-                    # Bot vytvoří nový příspěvek, název bude RP jméno a rovnou tam pošle tu ID kartu
                     await forum_kanal.create_thread(
                         name=self.rp_jmeno.value, 
                         content=f"Složka občana: **{self.rp_jmeno.value}**",
@@ -69,32 +66,28 @@ class IDModal(discord.ui.Modal):
         except discord.Forbidden:
             pass 
 
-        # 4. Úprava rolí
-        if self.cislo_postavy == 1:
-            role_obcan = interaction.guild.get_role(ROLE_OBCAN_ID)
-            role_imigrant = interaction.guild.get_role(ROLE_IMIGRANT_ID)
-            try:
-                if role_obcan:
-                    await interaction.user.add_roles(role_obcan)
-                if role_imigrant:
-                    await interaction.user.remove_roles(role_imigrant)
-            except discord.Forbidden:
-                pass
+        # 4. Úprava rolí (Automaticky)
+        role_obcan = interaction.guild.get_role(ROLE_OBCAN_ID)
+        role_imigrant = interaction.guild.get_role(ROLE_IMIGRANT_ID)
+        try:
+            if role_obcan:
+                await interaction.user.add_roles(role_obcan)
+            if role_imigrant:
+                await interaction.user.remove_roles(role_imigrant)
+        except discord.Forbidden:
+            pass
 
-        await interaction.response.send_message("Tvá ID Karta byla úspěšně vytvořena a složka v MDT založena!", ephemeral=True)
+        # 5. Potichu zavře formulář a nepošle vůbec žádnou zprávu
+        await interaction.response.defer()
 
 class IDKartaCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     @app_commands.command(name="id", description="Vytvoř si kalifornský průkaz pro svou postavu.")
-    @app_commands.describe(postava="Vyber, kterou postavu chceš upravit/vytvořit")
-    @app_commands.choices(postava=[
-        app_commands.Choice(name="Postava 1", value=1),
-        app_commands.Choice(name="Postava 2", value=2)
-    ])
-    async def id_command(self, interaction: discord.Interaction, postava: app_commands.Choice[int]):
-        await interaction.response.send_modal(IDModal(cislo_postavy=postava.value))
+    async def id_command(self, interaction: discord.Interaction):
+        # Už nenabízí výběr, rovnou otevře okno
+        await interaction.response.send_modal(IDModal())
 
 async def setup(bot):
-await interaction.response.defer()
+    await bot.add_cog(IDKartaCog(bot))
