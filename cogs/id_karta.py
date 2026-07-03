@@ -7,9 +7,9 @@ KANAL_ID = 1394695582760571070
 ROLE_IMIGRANT_ID = 1394695578801148018
 ROLE_OBCAN_ID = 1394695578801148019
 
-# Tvoje ID z MDT serveru (DOPLŇ SI SVÁ ČÍSLA)
-MDT_SERVER_ID = 1453744303691137045  # ID celého MDT serveru
-MDT_FORUM_ID = 1453745209643896933   # ID toho FORUM kanálu
+# Tvoje ID z MDT serveru
+MDT_SERVER_ID = 1453744303691137045  # DOPLŇ
+MDT_FORUM_ID = 1453745209643896933   # DOPLŇ
 
 class IDModal(discord.ui.Modal):
     def __init__(self):
@@ -21,8 +21,10 @@ class IDModal(discord.ui.Modal):
     misto_narozeni = discord.ui.TextInput(label="Místo narození", placeholder="Např. Los Angeles, CA", required=True)
 
     async def on_submit(self, interaction: discord.Interaction):
+        # PŘIDÁNO ČÍSLO ID PŘÍMO DO POPISU KARTY
         popis = (
             f"{interaction.user.mention}\n\n"
+            f"**Číslo ID:** `{interaction.user.id}`\n"
             f"**Roblox nick:** {self.roblox_nick.value}\n"
             f"**Jméno a Příjmení:** {self.rp_jmeno.value}\n"
             f"**Datum narození:** {self.datum_narozeni.value}\n"
@@ -46,7 +48,7 @@ class IDModal(discord.ui.Modal):
                 try:
                     await forum_kanal.create_thread(
                         name=self.rp_jmeno.value, 
-                        content=f"Složka občana: **{self.rp_jmeno.value}**",
+                        content=f"Složka občana: **{self.rp_jmeno.value}**\nČíslo ID: `{interaction.user.id}`",
                         embed=embed
                     )
                 except discord.Forbidden:
@@ -77,7 +79,7 @@ class IDModal(discord.ui.Modal):
         except discord.Forbidden:
             pass
 
-        # 5. Potichu zavře formulář a nepošle vůbec žádnou zprávu
+        # 5. Potichu zavře formulář
         await interaction.response.defer()
 
 class IDKartaCog(commands.Cog):
@@ -86,7 +88,6 @@ class IDKartaCog(commands.Cog):
 
     @app_commands.command(name="id", description="Vytvoř si kalifornský průkaz pro svou postavu.")
     async def id_command(self, interaction: discord.Interaction):
-        # Už nenabízí výběr, rovnou otevře okno
         await interaction.response.send_modal(IDModal())
 
 async def setup(bot):
