@@ -6,7 +6,6 @@ import os
 
 DATABAZE_SOUBOR = "databaze_hracu.json"
 
-# Slovník pro hezčí výpis průkazů z databázových zkratek
 PRUKAZY_MAP = {
     "rp_a": "Řidičský průkaz - Skupina A (Moto)",
     "rp_b": "Řidičský průkaz - Skupina B (Auto)",
@@ -23,10 +22,9 @@ def nacti_databazi():
     with open(DATABAZE_SOUBOR, "r") as f:
         return json.load(f)
 
-# Hlavní funkce pro tvorbu vzhledu profilu (využijeme ji později i pro MDT)
 def vytvor_profil_embed(hrac_id, hrac_jmeno=None, db_data=None):
     if db_data is None:
-        db_data = {}
+        db_data = nacti_databazi()
 
     hrac_data = db_data.get(str(hrac_id), {})
     
@@ -34,7 +32,6 @@ def vytvor_profil_embed(hrac_id, hrac_jmeno=None, db_data=None):
     if hrac_jmeno:
         embed.description = f"Výpis z centrální databáze pro občana: {hrac_jmeno}"
     
-    # 1. Průkazy
     prukazy = hrac_data.get("prukazy", [])
     if prukazy:
         prukazy_text = "\n".join([f"• {PRUKAZY_MAP.get(p, p)}" for p in prukazy])
@@ -42,7 +39,6 @@ def vytvor_profil_embed(hrac_id, hrac_jmeno=None, db_data=None):
         prukazy_text = "❌ Žádné vydané průkazy"
     embed.add_field(name="🪪 Průkazy a Licence", value=prukazy_text, inline=False)
 
-    # 2. Zbraně
     zbrane = hrac_data.get("zbrane", [])
     if zbrane:
         zbrane_text = "\n".join([f"• {z['typ']} (SN: `{z['sn']}`)" for z in zbrane])
@@ -50,7 +46,6 @@ def vytvor_profil_embed(hrac_id, hrac_jmeno=None, db_data=None):
         zbrane_text = "❌ Žádné registrované zbraně"
     embed.add_field(name="🔫 Registr Zbraní", value=zbrane_text, inline=False)
 
-    # 3. Vozidla
     vozidla = hrac_data.get("vozidla", [])
     if vozidla:
         vozidla_text = "\n".join([f"• {v['model']} - {v['barva']} (RZ: `{v['spz']}`)" for v in vozidla])
@@ -61,6 +56,32 @@ def vytvor_profil_embed(hrac_id, hrac_jmeno=None, db_data=None):
     embed.set_footer(text=f"Číslo ID: {hrac_id} | CaliCore System")
     return embed
 
+# ==========================================
+# NOVÁ FUNKCE: AUTOMATICKÁ AKTUALIZACE V MDT
+# ==========================================
+async def aktualizuj_mdt_profil(bot, hrac_id):
+    db = nacti_databazi()
+    hrac_id_str = str(hrac_id)
+    hrac_data = db.get(hrac_id_str, {})
+    
+    vlakno_id = hrac_data.get("mdt_vlakno_id")
+    zprava_id = hrac_data.get("mdt_zprava_id")
+    
+    # Pokud hráč ještě nemá složku, nemáme co aktualizovat
+    if not vlakno_id or not zprava_id:
+        return 
+        
+    try:
+        # Bot najde vlákno ve fóru a konkrétní zprávu s profilem
+        vlakno = await bot.fetch_channel(vlakno_id)
+        zprava = await vlakno.fetch_message(zprava_id)
+        
+        # Vygeneruje novou, aktuální tabulku a starou zprávu přepíše!
+        novy_embed = vytvor_profil_embed(hrac_id_str, None, db)
+        await zprava.edit(embed=novy_embed)
+    except Exception as e:
+        print(f"Chyba při updatu profilu na MDT: {e}")
+
 class ProfilCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -69,11 +90,7 @@ class ProfilCog(commands.Cog):
     async def profil_command(self, interaction: discord.Interaction):
         db = nacti_databazi()
         hrac_id = str(interaction.user.id)
-        
-        # Vygenerujeme tabulku
         embed = vytvor_profil_embed(hrac_id, interaction.user.mention, db)
-        
-        # Odeslání odpovědi pouze hráči
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 async def setup(bot):
