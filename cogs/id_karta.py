@@ -7,7 +7,7 @@ import os
 # IMPORTUJEME TABULKU Z NAŠEHO PROFILU!
 from cogs.profil import vytvor_profil_embed
 
-MDT_FORUM_ID = 000000000000000000  # DOPLŇ ID TVÉHO MDT FÓRA PRO SLOŽKY
+MDT_FORUM_ID = 1453745209643896933  # DOPLŇ ID TVÉHO MDT FÓRA PRO SLOŽKY
 DATABAZE_SOUBOR = "databaze_hracu.json"
 
 def nacti_databazi():
