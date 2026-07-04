@@ -3,11 +3,9 @@ from discord.ext import commands
 from discord import app_commands
 import json
 import os
-
-# IMPORT AKTUALIZAČNÍ FUNKCE
 from cogs.profil import aktualizuj_mdt_profil
 
-MDT_PRUKAZY_ID = 1394695582760571070 # ZDE DOPLŇ ID KANÁLU PRO PRŮKAZY
+MDT_PRUKAZY_ID = 1522513841705975869 # ZDE DOPLŇ ID KANÁLU
 
 DATABAZE_SOUBOR = "databaze_hracu.json"
 
@@ -54,15 +52,16 @@ class PrukazyCog(commands.Cog):
             return
 
         db[hrac_id]["prukazy"].append(typ.value)
-        
-        # ULOŽENÍ A AKTUALIZACE
         uloz_databazi(db)
-        await aktualizuj_mdt_profil(self.bot, hrac_id)
 
         embed = discord.Embed(title="🪪 Vydání nového průkazu", color=discord.Color.green())
         embed.add_field(name="Typ průkazu", value=f"**{typ.name}**", inline=False)
         embed.add_field(name="Majitel", value=f"<@{hrac_id}> (ID: `{hrac_id}`)", inline=False)
+        
+        # ODPOVÍ HNED
         await interaction.response.send_message(embed=embed)
+        # AKTUALIZUJE AŽ POTOM
+        await aktualizuj_mdt_profil(self.bot, hrac_id)
 
     @app_commands.command(name="odebrat_prukaz", description="[MDT] Odebere občanu průkaz / licenci.")
     @app_commands.describe(hrac_id="Číslo ID občana", typ="Vyber typ průkazu ke smazání")
@@ -75,15 +74,16 @@ class PrukazyCog(commands.Cog):
         db = nacti_databazi()
         if hrac_id in db and "prukazy" in db[hrac_id] and typ.value in db[hrac_id]["prukazy"]:
             db[hrac_id]["prukazy"].remove(typ.value)
-            
-            # ULOŽENÍ A AKTUALIZACE
             uloz_databazi(db)
-            await aktualizuj_mdt_profil(self.bot, hrac_id)
             
             embed = discord.Embed(title="🚨 Zrušení platnosti průkazu", color=discord.Color.red())
             embed.add_field(name="Typ průkazu", value=f"**{typ.name}**", inline=False)
             embed.add_field(name="Odebráno majiteli", value=f"<@{hrac_id}> (ID: `{hrac_id}`)", inline=False)
+            
+            # ODPOVÍ HNED
             await interaction.response.send_message(embed=embed)
+            # AKTUALIZUJE AŽ POTOM
+            await aktualizuj_mdt_profil(self.bot, hrac_id)
         else:
             await interaction.response.send_message("❌ Tento občan daný průkaz nevlastní.", ephemeral=True)
 
