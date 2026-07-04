@@ -1,94 +1,71 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+import json
+import os
 
-# Tvoje ID z HLAVNÍHO serveru
-KANAL_ID = 1394695582760571070
-ROLE_IMIGRANT_ID = 1394695578801148018
-ROLE_OBCAN_ID = 1394695578801148019
+# IMPORTUJEME TABULKU Z NAŠEHO PROFILU!
+from cogs.profil import vytvor_profil_embed
 
-# Tvoje ID z MDT serveru
-MDT_SERVER_ID = 1453744303691137045  # DOPLŇ
-MDT_FORUM_ID = 1453745209643896933   # DOPLŇ
+MDT_FORUM_ID = 000000000000000000  # DOPLŇ ID TVÉHO MDT FÓRA PRO SLOŽKY
+DATABAZE_SOUBOR = "databaze_hracu.json"
 
-class IDModal(discord.ui.Modal):
-    def __init__(self):
-        super().__init__(title="Vytvoření postavy")
+def nacti_databazi():
+    if not os.path.exists(DATABAZE_SOUBOR):
+        return {}
+    with open(DATABAZE_SOUBOR, "r") as f:
+        return json.load(f)
 
-    roblox_nick = discord.ui.TextInput(label="Roblox nick", placeholder="Roblox nick, ne display nick", required=True)
-    rp_jmeno = discord.ui.TextInput(label="Jméno a Příjmení (v RP)", placeholder="Např. Oliver Brown", required=True)
-    datum_narozeni = discord.ui.TextInput(label="Datum narození", placeholder="Např. 15/08/1995", required=True)
-    misto_narozeni = discord.ui.TextInput(label="Místo narození", placeholder="Např. Los Angeles, CA", required=True)
+def uloz_databazi(data):
+    with open(DATABAZE_SOUBOR, "w") as f:
+        json.dump(data, f, indent=4)
 
-    async def on_submit(self, interaction: discord.Interaction):
-        # PŘIDÁNO ČÍSLO ID PŘÍMO DO POPISU KARTY
-        popis = (
-            f"{interaction.user.mention}\n\n"
-            f"**Číslo ID:** `{interaction.user.id}`\n"
-            f"**Roblox nick:** {self.roblox_nick.value}\n"
-            f"**Jméno a Příjmení:** {self.rp_jmeno.value}\n"
-            f"**Datum narození:** {self.datum_narozeni.value}\n"
-            f"**Místo narození:** {self.misto_narozeni.value}"
-        )
-
-        embed = discord.Embed(title="ID Karta", description=popis, color=discord.Color.blue())
-        embed.set_footer(text="CaliCore DMV System | Los Angeles")
-
-        # 1. Odeslání na hlavní server
-        kanal = interaction.guild.get_channel(KANAL_ID)
-        if kanal:
-            await kanal.send(embed=embed)
-            
-        # 2. PROPOJENÍ NA MDT SERVER (Vytvoření příspěvku ve fóru)
-        mdt_server = interaction.client.get_guild(MDT_SERVER_ID)
-        if mdt_server:
-            forum_kanal = mdt_server.get_channel(MDT_FORUM_ID)
-            
-            if isinstance(forum_kanal, discord.ForumChannel):
-                try:
-                    await forum_kanal.create_thread(
-                        name=self.rp_jmeno.value, 
-                        content=f"Složka občana: **{self.rp_jmeno.value}**\nČíslo ID: `{interaction.user.id}`",
-                        embed=embed
-                    )
-                except discord.Forbidden:
-                    print("CaliCore nemá oprávnění tvořit příspěvky ve fóru.")
-            else:
-                print("Zadané MDT_FORUM_ID nepatří Forum kanálu!")
-        else:
-            print("CaliCore nenašel MDT server.")
-        
-        # 3. Změna přezdívky
-        nova_prezdivka = f"{self.rp_jmeno.value} | {self.roblox_nick.value}"
-        if len(nova_prezdivka) > 32:
-            nova_prezdivka = nova_prezdivka[:32]
-        
-        try:
-            await interaction.user.edit(nick=nova_prezdivka)
-        except discord.Forbidden:
-            pass 
-
-        # 4. Úprava rolí (Automaticky)
-        role_obcan = interaction.guild.get_role(ROLE_OBCAN_ID)
-        role_imigrant = interaction.guild.get_role(ROLE_IMIGRANT_ID)
-        try:
-            if role_obcan:
-                await interaction.user.add_roles(role_obcan)
-            if role_imigrant:
-                await interaction.user.remove_roles(role_imigrant)
-        except discord.Forbidden:
-            pass
-
-        # 5. Potichu zavře formulář
-        await interaction.response.defer()
-
-class IDKartaCog(commands.Cog):
+class IdKartaCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="id", description="Vytvoř si kalifornský průkaz pro svou postavu.")
-    async def id_command(self, interaction: discord.Interaction):
-        await interaction.response.send_modal(IDModal())
+    @app_commands.command(name="id", description="Založí novou ID kartu a složku občana v MDT fóru.")
+    @app_commands.describe(jmeno="Tvé jméno", prijmeni="Tvé příjmení", datum_narozeni="Datum narození")
+    async def id_command(self, interaction: discord.Interaction, jmeno: str, prijmeni: str, datum_narozeni: str):
+        # Defer - Dáme botovi čas přemýšlet, aby příkaz nespadl na timeout
+        await interaction.response.defer(ephemeral=True) 
+
+        forum = self.bot.get_channel(MDT_FORUM_ID)
+        if not forum or not isinstance(forum, discord.ForumChannel):
+            await interaction.followup.send("❌ Chyba: Kanál fóra nebyl nalezen nebo to není fórum.")
+            return
+
+        hrac_id_str = str(interaction.user.id)
+        nazev_vlakna = f"{jmeno} {prijmeni} - ID: {hrac_id_str}"
+
+        # 1. Tvorba modré ID Karty (Zakládací zpráva)
+        embed_id = discord.Embed(title="🪪 Průkaz Totožnosti (ID Karta)", color=discord.Color.blue())
+        embed_id.add_field(name="Jméno", value=jmeno, inline=True)
+        embed_id.add_field(name="Příjmení", value=prijmeni, inline=True)
+        embed_id.add_field(name="Datum narození", value=datum_narozeni, inline=False)
+        embed_id.add_field(name="Číslo ID", value=f"`{hrac_id_str}`", inline=False)
+        embed_id.set_thumbnail(url=interaction.user.display_avatar.url)
+        embed_id.set_footer(text="Oficiální záznam státní správy")
+
+        # 2. Vytvoříme vlákno a pošleme do něj ID Kartu
+        vytvorene_vlakno = await forum.create_thread(name=nazev_vlakna, embed=embed_id)
+        vlakno = vytvorene_vlakno.thread
+
+        # 3. Načteme databázi a vytvoříme hráči čistý záznam, pokud ho nemá
+        db = nacti_databazi()
+        if hrac_id_str not in db:
+            db[hrac_id_str] = {"prukazy": [], "zbrane": [], "vozidla": []}
+
+        # 4. Vygenerujeme druhou zprávu (Živý profil) a pošleme ji HNED POD ID Kartu
+        profil_embed = vytvor_profil_embed(hrac_id_str, interaction.user.mention, db)
+        profil_zprava = await vlakno.send(embed=profil_embed)
+
+        # 5. ULOŽÍME SI ID ZPRÁVY DO PAMĚTI! (Tady se děje to hlavní kouzlo)
+        db[hrac_id_str]["mdt_vlakno_id"] = vlakno.id
+        db[hrac_id_str]["mdt_zprava_id"] = profil_zprava.id
+        uloz_databazi(db)
+
+        await interaction.followup.send(f"✅ Tvoje ID Karta a MDT složka byla úspěšně založena: {vlakno.mention}")
 
 async def setup(bot):
-    await bot.add_cog(IDKartaCog(bot))
+    await bot.add_cog(IdKartaCog(bot))
