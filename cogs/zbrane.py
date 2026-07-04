@@ -3,11 +3,9 @@ from discord.ext import commands
 from discord import app_commands
 import json
 import os
-
-# IMPORT AKTUALIZAČNÍ FUNKCE
 from cogs.profil import aktualizuj_mdt_profil
 
-MDT_ZBRANE_ID = 1522683939964063794 # ZDE DOPLŇ ID KANÁLU PRO ZBRANĚ
+MDT_ZBRANE_ID = 1522683939964063794 # ZDE DOPLŇ ID KANÁLU
 
 DATABAZE_SOUBOR = "databaze_hracu.json"
 
@@ -45,16 +43,18 @@ class ZbraneCog(commands.Cog):
                 return
 
         db[hrac_id]["zbrane"].append({"typ": typ, "sn": sn_upper})
-        
-        # ULOŽENÍ A AKTUALIZACE
         uloz_databazi(db)
-        await aktualizuj_mdt_profil(self.bot, hrac_id)
 
         embed = discord.Embed(title="🔫 Registrace zbraně", color=discord.Color.dark_grey())
         embed.add_field(name="Zbraň", value=typ, inline=True)
         embed.add_field(name="Sériové číslo (SN)", value=f"`{sn_upper}`", inline=True)
         embed.add_field(name="Majitel", value=f"<@{hrac_id}> (ID: `{hrac_id}`)", inline=False)
+        
+        # 1. OKAMŽITĚ ODPOVÍME DISCORDU (aby nespadl)
         await interaction.response.send_message(embed=embed)
+        
+        # 2. AŽ POTOM AKTUALIZUJEME FÓRUM NA POZADÍ
+        await aktualizuj_mdt_profil(self.bot, hrac_id)
 
     @app_commands.command(name="odebrat_zbran", description="[MDT] Smaže zbraň z registru občana (dle Sériového Čísla).")
     @app_commands.describe(hrac_id="Číslo ID občana", sn="Sériové číslo zbraně")
@@ -71,14 +71,16 @@ class ZbraneCog(commands.Cog):
             db[hrac_id]["zbrane"] = [z for z in db[hrac_id]["zbrane"] if z["sn"] != sn_upper]
             
             if len(db[hrac_id]["zbrane"]) < puvodni_pocet:
-                # ULOŽENÍ A AKTUALIZACE
                 uloz_databazi(db)
-                await aktualizuj_mdt_profil(self.bot, hrac_id)
                 
                 embed = discord.Embed(title="🚨 Zabavení / Odstranění zbraně", color=discord.Color.red())
                 embed.add_field(name="Sériové číslo (SN)", value=f"`{sn_upper}`", inline=False)
                 embed.add_field(name="Odebráno majiteli", value=f"<@{hrac_id}>", inline=True)
+                
+                # ODPOVÍ HNED
                 await interaction.response.send_message(embed=embed)
+                # AKTUALIZUJE AŽ POTOM
+                await aktualizuj_mdt_profil(self.bot, hrac_id)
             else:
                 await interaction.response.send_message(f"Zbraň s SN `{sn_upper}` u tohoto občana neexistuje.", ephemeral=True)
         else:
