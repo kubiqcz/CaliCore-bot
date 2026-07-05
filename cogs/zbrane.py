@@ -25,12 +25,13 @@ class ZbraneCog(commands.Cog):
         self.bot = bot
 
     zbrane_choices = [
-        app_commands.Choice(name="Beretta M9 (Pistole)", value="Beretta M9"),
-        app_commands.Choice(name="Glock 19 (Pistole)", value="Glock 19"),
-        app_commands.Choice(name="Colt M1911 (Pistole)", value="Colt M1911"),
-        app_commands.Choice(name="Remington 870 (Brokovnice)", value="Remington 870"),
-        app_commands.Choice(name="AR-15 (Útočná puška)", value="AR-15"),
-        app_commands.Choice(name="AK-47 (Útočná puška)", value="AK-47")
+        app_commands.Choice(name="Berreta M9", value="Berreta M9"),
+        app_commands.Choice(name="Colt M1911", value="Colt M1911"),
+        app_commands.Choice(name="Colt Python", value="Colt Python"),
+        app_commands.Choice(name="Remington 870", value="Remington 870"),
+        app_commands.Choice(name="Remington 700", value="Remington 700"),
+        app_commands.Choice(name="M14", value="M14"),
+        app_commands.Choice(name="LMT L129A1", value="LMT L129A1")
     ]
 
     @app_commands.command(name="registrovat_zbran", description="[MDT] Zaregistruje zbraň na občana.")
