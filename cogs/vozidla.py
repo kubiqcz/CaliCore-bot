@@ -4,12 +4,38 @@ from discord import app_commands
 import json
 import os
 
-# IMPORT AKTUALIZAČNÍ FUNKCE
 from cogs.profil import aktualizuj_mdt_profil
 
-MDT_REGISTR_VOZIDEL_ID = 1522684016388472983 # ZDE DOPLŇ ID KANÁLU PRO REGISTR VOZIDEL
+MDT_REGISTR_VOZIDEL_ID = 000000000000000000 # ZDE DOPLŇ ID KANÁLU
 
 DATABAZE_SOUBOR = "databaze_hracu.json"
+
+# KOMPLETNÍ SEZNAM VŠECH VOZIDEL PRO NAŠEPTÁVAČ
+SEZNAM_VOZIDEL = [
+    "Arrow Phoenix Nationals (1977)", 
+    "Averon Anodic (2024)", "Averon Bremen VS Garde (2023)", "Averon LM (2020)", "Averon LM R (2020)", "Averon Q8 (2022)", "Averon RS3 (2020)", "Averon S5 (2010)", 
+    "BKM Munich (2020)", "BKM Risen Roadster (2020)", 
+    "Bullhorn BH15 (2009)", "Bullhorn Determinator (2008)", "Bullhorn Determinator C/T (2022)", "Bullhorn Determinator SFP Blackjack Widebody (2022)", "Bullhorn Determinator SFP Fury (2022)", "Bullhorn Foreman (1988)", "Bullhorn Prancer (1969)", "Bullhorn Prancer C/T (2020)", "Bullhorn Prancer Colonel Fields (1969)", "Bullhorn Prancer Fury Widebody (2020)", "Bullhorn Prancer Hotrod (1969)", "Bullhorn Prancer S (2011)", "Bullhorn Prancer Talladega (1969)", "Bullhorn Pueblo SFP Fury (2022)", "Bullhorn Pueblo V6 (2022)", 
+    "Celestial Truckatron (2024)", "Celestial Type-5 (2022)", "Celestial Type-6 (2024)", "Celestial Type-7 (2022)", 
+    "Chevlon Amigo LZR (2011)", "Chevlon Amigo S (2011)", "Chevlon Amigo S (2016)", "Chevlon Camion (2008)", "Chevlon Camion (2018)", "Chevlon Camion (2021)", "Chevlon Camion GMT 800 LT (2002)", "Chevlon Camion GMT 800 LTS (2002)", "Chevlon Camion GMT 800 S (2002)", "Chevlon Captain (1992)", "Chevlon Captain (2009)", "Chevlon Captain Antelope SS (1994)", "Chevlon Captain LTZ (1994)", "Chevlon Commuter Van (2006)", "Chevlon Corbeta 8 (2023)", "Chevlon Corbeta C2 (1967)", "Chevlon Corbeta RZR (2014)", "Chevlon Corbeta X08 (2014)", "Chevlon Inferno (1981)", "Chevlon L/15 (1981)", "Chevlon L/15 Side Step (1981)", "Chevlon L/35 Extended (1981)", "Chevlon Landslide (2007)", "Chevlon Platoro (2019)", "Chevlon Revver (2005)", 
+    "Chryslus Champion (2005)", 
+    "Elysion Slick (2014)", 
+    "Falcon Advance 100 (1956)", "Falcon Advance 350 (2020)", "Falcon Advance 350 Royal Ranch (2020)", "Falcon Advance 450 (2020)", "Falcon Advance 450 Royal Ranch (2020)", "Falcon Aquarius STP (2017)", "Falcon eStallion (2024)", "Falcon Heritage (2021)", "Falcon Heritage Track (2022)", "Falcon Prime Eques (2003)", "Falcon Rampage Beast (2021)", "Falcon Rampage Bigfoot 2-Door (2021)", "Falcon Rampage Prairie (2021)", "Falcon Scavenger (2013)", "Falcon Scavenger (2016)", "Falcon Scavenger Royal Ranch (2024)", "Falcon Stallion 350 (1969)", "Falcon Stallion 350 (2015)", "Falcon Traveller (2022)", 
+    "Ferdinand Jalapeno Turbo (2022)", 
+    "Kovac Heladera (2023)", 
+    "Leland LTS (2010)", "Leland LTS5-V Blackwing (2023)", "Leland Vault (2020)", 
+    "Navara Boundary (2022)", "Navara Horizon (2013)", "Navara Imperium (2020)", 
+    "Overland Apache (1995)", "Overland Apache (2011)", "Overland Apache SFP (2020)", "Overland Buckaroo (2018)", 
+    "Sentinel Platinum (1968)", 
+    "Strugatti Ettore (2020)", 
+    "Stuttgart Landschaft (2022)", "Stuttgart Vierturig (2021)", 
+    "Sumo Reflexion (2022)", 
+    "Surrey 650S (2016)", 
+    "Takeo Experience (2021)", 
+    "Terrain Traveller (2022)", 
+    "Vellfire Everest VRD Max (2023)", "Vellfire Evertt Extended Cab (1995)", "Vellfire Pioneer (2019)", "Vellfire Pioneer Targa (2019)", "Vellfire Prairie (2022)", "Vellfire Prima (2009)", "Vellfire Riptide (2020)", "Vellfire Runabout (1984)",
+    "Lawn Mower", "4-Wheeler", "Canyon Descender", "C18 Camper Trailer"
+]
 
 def nacti_databazi():
     if not os.path.exists(DATABAZE_SOUBOR):
@@ -21,80 +47,47 @@ def uloz_databazi(data):
     with open(DATABAZE_SOUBOR, "w") as f:
         json.dump(data, f, indent=4)
 
-
-# VYSKAKOVACÍ OKNO PRO REGISTRACI VOZIDLA
-class RegistraceVozidlaModal(discord.ui.Modal, title='Registrace nového vozidla'):
-    hrac_id = discord.ui.TextInput(
-        label='Číslo ID občana',
-        placeholder='Např. 828545265531093063',
-        required=True
-    )
-    vozidlo = discord.ui.TextInput(
-        label='Značka a model vozidla',
-        placeholder='Např. Averon Bremen VS Garde',
-        required=True
-    )
-    barva = discord.ui.TextInput(
-        label='Barva vozidla',
-        placeholder='Např. Černá',
-        required=True
-    )
-    spz = discord.ui.TextInput(
-        label='SPZ (RZ) ze hry',
-        placeholder='Např. ABC-123',
-        required=True,
-        max_length=8
-    )
-
-    def __init__(self, bot):
-        super().__init__()
-        self.bot = bot
-
-    async def on_submit(self, interaction: discord.Interaction):
-        db = nacti_databazi()
-        id_str = self.hrac_id.value.strip()
-        
-        if id_str not in db:
-            db[id_str] = {"prukazy": [], "zbrane": [], "vozidla": []}
-        if "vozidla" not in db[id_str]:
-            db[id_str]["vozidla"] = []
-
-        spz_upper = self.spz.value.upper().strip()
-        
-        for v in db[id_str]["vozidla"]:
-            if v["spz"] == spz_upper:
-                await interaction.response.send_message(f"❌ Vozidlo se značkou `{spz_upper}` už občan s ID `{id_str}` vlastní.", ephemeral=True)
-                return
-
-        db[id_str]["vozidla"].append({"model": self.vozidlo.value, "barva": self.barva.value, "spz": spz_upper})
-        uloz_databazi(db)
-
-        embed = discord.Embed(title="🚘 Záznam o registraci vozidla", color=discord.Color.blue())
-        embed.add_field(name="Vozidlo", value=f"**{self.vozidlo.value}**", inline=False)
-        embed.add_field(name="Barva", value=self.barva.value, inline=True)
-        embed.add_field(name="SPZ (RZ)", value=f"`{spz_upper}`", inline=True)
-        embed.add_field(name="Majitel", value=f"<@{id_str}> (ID: `{id_str}`)", inline=False)
-        embed.set_footer(text="CaliCore MDT System | Vozidlo uloženo do databáze")
-        
-        # 1. OKAMŽITĚ ODPOVÍME DISCORDU
-        await interaction.response.send_message(embed=embed)
-        
-        # 2. AŽ POTOM AKTUALIZUJEME FÓRUM NA POZADÍ
-        await aktualizuj_mdt_profil(self.bot, id_str)
-
-
 class VozidlaCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="registrovat_vozidlo", description="[MDT] Otevře formulář pro registraci vozidla na občana.")
-    async def registrovat_vozidlo(self, interaction: discord.Interaction):
+    # Funkce našeptávače, která vyhledává ve tvém seznamu aut
+    async def auto_naseptavac(self, interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
+        shody = [auto for auto in SEZNAM_VOZIDEL if current.lower() in auto.lower()]
+        # Discord zvládne ukázat jen 25 našeptaných výsledků najednou
+        return [app_commands.Choice(name=auto, value=auto) for auto in shody][:25]
+
+    @app_commands.command(name="registrovat_vozidlo", description="[MDT] Zaregistruje vozidlo na občana.")
+    @app_commands.describe(hrac_id="Číslo ID občana", model="Začni psát značku auta...", barva="Barva vozidla", spz="SPZ ze hry")
+    @app_commands.autocomplete(model=auto_naseptavac) # Připojení našeptávače k políčku 'model'
+    async def registrovat_vozidlo(self, interaction: discord.Interaction, hrac_id: str, model: str, barva: str, spz: str):
         if interaction.channel_id != MDT_REGISTR_VOZIDEL_ID:
             await interaction.response.send_message("❌ Tento příkaz lze použít pouze v kanálu pro registr vozidel.", ephemeral=True)
             return
+
+        db = nacti_databazi()
+        if hrac_id not in db:
+            db[hrac_id] = {"prukazy": [], "zbrane": [], "vozidla": []}
+        if "vozidla" not in db[hrac_id]:
+            db[hrac_id]["vozidla"] = []
+
+        spz_upper = spz.upper().strip()
+        for v in db[hrac_id]["vozidla"]:
+            if v["spz"] == spz_upper:
+                await interaction.response.send_message(f"❌ Vozidlo se značkou `{spz_upper}` už občan vlastní.", ephemeral=True)
+                return
+
+        db[hrac_id]["vozidla"].append({"model": model, "barva": barva, "spz": spz_upper})
+        uloz_databazi(db)
+
+        embed = discord.Embed(title="🚘 Záznam o registraci vozidla", color=discord.Color.blue())
+        embed.add_field(name="Vozidlo", value=f"**{model}**", inline=False)
+        embed.add_field(name="Barva", value=barva, inline=True)
+        embed.add_field(name="SPZ (RZ)", value=f"`{spz_upper}`", inline=True)
+        embed.add_field(name="Majitel", value=f"<@{hrac_id}> (ID: `{hrac_id}`)", inline=False)
         
-        # Otevře to naše nové vyskakovací okno
-        await interaction.response.send_modal(RegistraceVozidlaModal(self.bot))
+        await interaction.response.send_message(embed=embed)
+        await aktualizuj_mdt_profil(self.bot, hrac_id)
 
     @app_commands.command(name="odstranit_vozidlo", description="[MDT] Odstraní vozidlo z registru občana (dle SPZ).")
     @app_commands.describe(hrac_id="Číslo ID občana", spz="SPZ vozidla ke smazání")
@@ -104,7 +97,7 @@ class VozidlaCog(commands.Cog):
             return
 
         db = nacti_databazi()
-        spz_upper = spz.upper()
+        spz_upper = spz.upper().strip()
 
         if hrac_id in db and "vozidla" in db[hrac_id]:
             puvodni_pocet = len(db[hrac_id]["vozidla"])
@@ -120,9 +113,9 @@ class VozidlaCog(commands.Cog):
                 await interaction.response.send_message(embed=embed)
                 await aktualizuj_mdt_profil(self.bot, hrac_id)
             else:
-                await interaction.response.send_message(f"Vozidlo se SPZ `{spz_upper}` u tohoto občana nebylo nalezeno.", ephemeral=True)
+                await interaction.response.send_message(f"❌ Vozidlo se SPZ `{spz_upper}` u tohoto občana nebylo nalezeno.", ephemeral=True)
         else:
-            await interaction.response.send_message("Občan nemá registrovaná žádná vozidla.", ephemeral=True)
+            await interaction.response.send_message("❌ Občan nemá registrovaná žádná vozidla.", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(VozidlaCog(bot))
