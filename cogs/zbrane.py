@@ -6,7 +6,7 @@ import os
 
 from cogs.profil import aktualizuj_mdt_profil
 
-MDT_ZBRANE_ID = 1522683939964063794 # ZDE DOPLŇ ID KANÁLU PRO ZBRANĚ
+MDT_ZBRANE_ID = 000000000000000000 # ZDE DOPLŇ ID KANÁLU PRO ZBRANĚ
 
 DATABAZE_SOUBOR = "databaze_hracu.json"
 
