@@ -1,23 +1,29 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import json
-import os
+import pymongo
+
 from cogs.profil import aktualizuj_mdt_profil
 
-MDT_PRUKAZY_ID = 1522513841705975869 # ZDE DOPLŇ ID KANÁLU
+# ==========================================
+MDT_PRUKAZY_ID = 1522513841705975869 # ZDE DOPLŇ ID KANÁLU PRO PRŮKAZY
+# ==========================================
 
-DATABAZE_SOUBOR = "databaze_hracu.json"
+MONGO_URI = "mongodb+srv://kubiqcz1:Aluska78@calicore.kmnmj4h.mongodb.net/?appName=CaliCore"
+klient = pymongo.MongoClient(MONGO_URI)
+db_cloud = klient["calicore_databaze"]
+kolekce_hraci = db_cloud["hraci"]
 
 def nacti_databazi():
-    if not os.path.exists(DATABAZE_SOUBOR):
-        return {}
-    with open(DATABAZE_SOUBOR, "r") as f:
-        return json.load(f)
+    data = {}
+    for hrac in kolekce_hraci.find():
+        data[str(hrac["_id"])] = hrac
+    return data
 
 def uloz_databazi(data):
-    with open(DATABAZE_SOUBOR, "w") as f:
-        json.dump(data, f, indent=4)
+    for hrac_id, hrac_data in data.items():
+        hrac_data["_id"] = str(hrac_id)
+        kolekce_hraci.replace_one({"_id": str(hrac_id)}, hrac_data, upsert=True)
 
 class PrukazyCog(commands.Cog):
     def __init__(self, bot):
@@ -58,9 +64,7 @@ class PrukazyCog(commands.Cog):
         embed.add_field(name="Typ průkazu", value=f"**{typ.name}**", inline=False)
         embed.add_field(name="Majitel", value=f"<@{hrac_id}> (ID: `{hrac_id}`)", inline=False)
         
-        # ODPOVÍ HNED
         await interaction.response.send_message(embed=embed)
-        # AKTUALIZUJE AŽ POTOM
         await aktualizuj_mdt_profil(self.bot, hrac_id)
 
     @app_commands.command(name="odebrat_prukaz", description="[MDT] Odebere občanu průkaz / licenci.")
@@ -80,9 +84,7 @@ class PrukazyCog(commands.Cog):
             embed.add_field(name="Typ průkazu", value=f"**{typ.name}**", inline=False)
             embed.add_field(name="Odebráno majiteli", value=f"<@{hrac_id}> (ID: `{hrac_id}`)", inline=False)
             
-            # ODPOVÍ HNED
             await interaction.response.send_message(embed=embed)
-            # AKTUALIZUJE AŽ POTOM
             await aktualizuj_mdt_profil(self.bot, hrac_id)
         else:
             await interaction.response.send_message("❌ Tento občan daný průkaz nevlastní.", ephemeral=True)
