@@ -6,7 +6,7 @@ import os
 
 from cogs.profil import aktualizuj_mdt_profil
 
-MDT_REGISTR_VOZIDEL_ID = 000000000000000000 # ZDE DOPLŇ ID KANÁLU
+MDT_REGISTR_VOZIDEL_ID = 1522684016388472983 # ZDE DOPLŇ ID KANÁLU
 
 DATABAZE_SOUBOR = "databaze_hracu.json"
 
