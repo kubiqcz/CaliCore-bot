@@ -1,24 +1,29 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import json
-import os
+import pymongo
 
 from cogs.profil import aktualizuj_mdt_profil
 
+# ==========================================
 MDT_ZBRANE_ID = 1522683939964063794 # ZDE DOPLŇ ID KANÁLU PRO ZBRANĚ
+# ==========================================
 
-DATABAZE_SOUBOR = "databaze_hracu.json"
+MONGO_URI = "mongodb+srv://kubiqcz1:Aluska78@calicore.kmnmj4h.mongodb.net/?appName=CaliCore"
+klient = pymongo.MongoClient(MONGO_URI)
+db_cloud = klient["calicore_databaze"]
+kolekce_hraci = db_cloud["hraci"]
 
 def nacti_databazi():
-    if not os.path.exists(DATABAZE_SOUBOR):
-        return {}
-    with open(DATABAZE_SOUBOR, "r") as f:
-        return json.load(f)
+    data = {}
+    for hrac in kolekce_hraci.find():
+        data[str(hrac["_id"])] = hrac
+    return data
 
 def uloz_databazi(data):
-    with open(DATABAZE_SOUBOR, "w") as f:
-        json.dump(data, f, indent=4)
+    for hrac_id, hrac_data in data.items():
+        hrac_data["_id"] = str(hrac_id)
+        kolekce_hraci.replace_one({"_id": str(hrac_id)}, hrac_data, upsert=True)
 
 class ZbraneCog(commands.Cog):
     def __init__(self, bot):
@@ -82,7 +87,6 @@ class ZbraneCog(commands.Cog):
             
             if len(db[hrac_id]["zbrane"]) < puvodni_pocet:
                 uloz_databazi(db)
-                
                 embed = discord.Embed(title="🚨 Zabavení / Odstranění zbraně", color=discord.Color.red())
                 embed.add_field(name="Sériové číslo", value=f"`{sn_upper}`", inline=False)
                 embed.add_field(name="Odebráno majiteli", value=f"<@{hrac_id}>", inline=True)
