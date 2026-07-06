@@ -4,7 +4,7 @@ from discord import app_commands
 import pymongo
 
 # ==========================================
-# NASTAVENÍ OPRÁVNĚNÍ
+# NASTAVENÍ OPRÁVNĚNÍ A KANÁLŮ
 # ==========================================
 POVOLENE_KANALY_PROFIL = [1394695584383762569, 1394695584383762570, 1394695584383762571, 1394695584383762572, 1394695584383762573, 1394695584383762574] # ZDE DOPLŇ ID KANÁLU
 POVOLENE_ROLE_PROFIL = [1394695578801148019] # Pokud necháš prázdné [], může to použít kdokoli. Pokud sem dáš ID, např. [12345, 67890], omezí se to na tyto role.
@@ -30,15 +30,15 @@ def nacti_databazi():
         data[str(hrac["_id"])] = hrac
     return data
 
-def vytvor_profil_embed(hrac_id, hrac_jmeno=None, db_data=None):
+def vytvor_profil_embed(hrac_id, discord_jmeno=None, db_data=None):
     if db_data is None:
         db_data = nacti_databazi()
 
     hrac_data = db_data.get(str(hrac_id), {})
+    embed = discord.Embed(title="📁 Osobní RP Profil (Přehled majetku)", color=discord.Color.gold())
     
-    embed = discord.Embed(title="📁 Osobní RP Profil", color=discord.Color.gold())
-    if hrac_jmeno:
-        embed.description = f"Výpis z centrální databáze pro občana: {hrac_jmeno}"
+    jmeno_postavy = hrac_data.get('jmeno', 'Neznámo')
+    embed.description = f"**Občan:** {jmeno_postavy}\n**Číslo průkazu: \"{hrac_id}\"**"
     
     prukazy = hrac_data.get("prukazy", [])
     if prukazy:
@@ -61,7 +61,6 @@ def vytvor_profil_embed(hrac_id, hrac_jmeno=None, db_data=None):
         vozidla_text = "❌ Žádná registrovaná vozidla"
     embed.add_field(name="🚘 Registr Vozidel", value=vozidla_text, inline=False)
 
-    embed.set_footer(text=f"Číslo ID: {hrac_id} | CaliCore System")
     return embed
 
 async def aktualizuj_mdt_profil(bot, hrac_id):
@@ -70,16 +69,14 @@ async def aktualizuj_mdt_profil(bot, hrac_id):
     hrac_data = db.get(hrac_id_str, {})
     
     vlakno_id = hrac_data.get("mdt_vlakno_id")
-    zprava_id = hrac_data.get("mdt_zprava_id")
+    zprava_id = hrac_data.get("mdt_zprava_id") # Tohle je to ID zprávy, kde je tabulka profilu ve fóru
     
-    if not vlakno_id or not zprava_id:
-        return 
-        
+    if not vlakno_id or not zprava_id: return 
     try:
         vlakno = await bot.fetch_channel(vlakno_id)
         zprava = await vlakno.fetch_message(zprava_id)
         novy_embed = vytvor_profil_embed(hrac_id_str, None, db)
-        await zprava.edit(embed=novy_embed)
+        await zprava.edit(embed=novy_embed) # Upraví POUZE tabulku majetku ve fóru (občanka nahoře zůstane)
     except Exception as e:
         print(f"Chyba při updatu profilu na MDT: {e}")
 
@@ -87,24 +84,21 @@ class ProfilCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="profil", description="Zobrazí tvůj aktuální osobní RP profil (průkazy, zbraně, vozidla).")
-    async def profil_command(self, interaction: discord.Interaction):
-        # 1. KONTROLA KANÁLU
+    @app_commands.command(name="profil", description="Zobrazí tvůj RP profil, nebo profil jiného hráče.")
+    @app_commands.describe(obcan="Vyber hráče, pokud se chceš podívat na jeho profil (nepovinné)")
+    async def profil_command(self, interaction: discord.Interaction, obcan: discord.Member = None):
         if POVOLENE_KANALY_PROFIL and interaction.channel_id not in POVOLENE_KANALY_PROFIL:
-            spravne_kanaly = ", ".join([f"<#{k_id}>" for k_id in POVOLENE_KANALY_PROFIL])
-            await interaction.response.send_message(f"❌ Tento příkaz lze použít pouze v kanálech: {spravne_kanaly}", ephemeral=True)
+            await interaction.response.send_message("❌ Zde nemůžeš tento příkaz použít.", ephemeral=True)
             return
-            
-        # 2. KONTROLA ROLE
-        if POVOLENE_ROLE_PROFIL:
-            ma_roli = any(role.id in POVOLENE_ROLE_PROFIL for role in interaction.user.roles)
-            if not ma_roli:
-                await interaction.response.send_message("❌ Nemáš potřebnou roli pro použití tohoto příkazu.", ephemeral=True)
-                return
 
+        # Pokud nevybral nikoho, ukáže se jeho vlastní profil. Pokud vybral, ukáže se ten pingnutý.
+        cilovy_hrac = obcan if obcan else interaction.user
+        
         db = nacti_databazi()
-        hrac_id = str(interaction.user.id)
-        embed = vytvor_profil_embed(hrac_id, interaction.user.mention, db)
+        hrac_id = str(cilovy_hrac.id)
+        embed = vytvor_profil_embed(hrac_id, cilovy_hrac.mention, db)
+        
+        # Tohle vyjede pouze tomu hráči, který ten příkaz napsal (ephemeral=True)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 async def setup(bot):
