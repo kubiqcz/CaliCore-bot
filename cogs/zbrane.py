@@ -2,12 +2,13 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import pymongo
-
 from cogs.profil import aktualizuj_mdt_profil
 
 # ==========================================
-MDT_ZBRANE_ID = 1522683939964063794 # ZDE DOPLŇ ID KANÁLU PRO ZBRANĚ
+# NASTAVENÍ OPRÁVNĚNÍ MDT ZBRANĚ
 # ==========================================
+MDT_ZBRANE_ID = 1522683939964063794 # ID KANÁLU PRO ZBRANĚ
+POVOLENE_ROLE_MDT = [1523660335406383164] # ZDE DOPLŇ ID ROLE
 
 MONGO_URI = "mongodb+srv://kubiqcz1:Aluska78@calicore.kmnmj4h.mongodb.net/?appName=CaliCore"
 klient = pymongo.MongoClient(MONGO_URI)
@@ -39,12 +40,19 @@ class ZbraneCog(commands.Cog):
         app_commands.Choice(name="LMT L129A1", value="LMT L129A1")
     ]
 
+    def ma_mdt_opravneni(self, interaction: discord.Interaction):
+        if not POVOLENE_ROLE_MDT: return True
+        return any(role.id in POVOLENE_ROLE_MDT for role in interaction.user.roles)
+
     @app_commands.command(name="registrovat_zbran", description="[MDT] Zaregistruje zbraň na občana.")
     @app_commands.describe(hrac_id="Číslo ID občana", model="Vyber model zbraně ze seznamu", seriove_cislo="Sériové číslo ze hry")
     @app_commands.choices(model=zbrane_choices)
     async def registrovat_zbran(self, interaction: discord.Interaction, hrac_id: str, model: app_commands.Choice[str], seriove_cislo: str):
         if interaction.channel_id != MDT_ZBRANE_ID:
-            await interaction.response.send_message("❌ Tento příkaz lze použít pouze v kanálu pro zbraně.", ephemeral=True)
+            await interaction.response.send_message(f"❌ Tento příkaz lze použít pouze v <#{MDT_ZBRANE_ID}>.", ephemeral=True)
+            return
+        if not self.ma_mdt_opravneni(interaction):
+            await interaction.response.send_message("❌ Nemáš policejní/úřední oprávnění pro MDT registry.", ephemeral=True)
             return
 
         db = nacti_databazi()
@@ -55,11 +63,11 @@ class ZbraneCog(commands.Cog):
 
         sn_upper = seriove_cislo.upper().strip()
         for z in db[hrac_id]["zbrane"]:
-            if z["sn"] == sn_upper:
+            if z.get("serial number") == sn_upper:
                 await interaction.response.send_message(f"❌ Zbraň se sériovým číslem `{sn_upper}` už je v databázi.", ephemeral=True)
                 return
 
-        db[hrac_id]["zbrane"].append({"typ": model.value, "sn": sn_upper})
+        db[hrac_id]["zbrane"].append({"model": model.value, "serial number": sn_upper})
         uloz_databazi(db)
 
         embed = discord.Embed(title="🔫 Registrace zbraně", color=discord.Color.dark_grey())
@@ -75,7 +83,10 @@ class ZbraneCog(commands.Cog):
     @app_commands.describe(hrac_id="Číslo ID občana", seriove_cislo="Sériové číslo zbraně ke smazání")
     async def odebrat_zbran(self, interaction: discord.Interaction, hrac_id: str, seriove_cislo: str):
         if interaction.channel_id != MDT_ZBRANE_ID:
-            await interaction.response.send_message("❌ Tento příkaz lze použít pouze v kanálu pro zbraně.", ephemeral=True)
+            await interaction.response.send_message(f"❌ Tento příkaz lze použít pouze v <#{MDT_ZBRANE_ID}>.", ephemeral=True)
+            return
+        if not self.ma_mdt_opravneni(interaction):
+            await interaction.response.send_message("❌ Nemáš policejní/úřední oprávnění pro MDT registry.", ephemeral=True)
             return
 
         db = nacti_databazi()
@@ -83,7 +94,7 @@ class ZbraneCog(commands.Cog):
 
         if hrac_id in db and "zbrane" in db[hrac_id]:
             puvodni_pocet = len(db[hrac_id]["zbrane"])
-            db[hrac_id]["zbrane"] = [z for z in db[hrac_id]["zbrane"] if z["sn"] != sn_upper]
+            db[hrac_id]["zbrane"] = [z for z in db[hrac_id]["zbrane"] if z.get("serial number") != sn_upper]
             
             if len(db[hrac_id]["zbrane"]) < puvodni_pocet:
                 uloz_databazi(db)
