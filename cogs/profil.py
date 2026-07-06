@@ -3,9 +3,11 @@ from discord.ext import commands
 from discord import app_commands
 import pymongo
 
-POVOLENE_KANALY_PROFIL = [
-    1394695584383762569, 1394695584383762570, 1394695584383762571, 1394695584383762572, 1394695584383762573, 1394695584383762574 # ZDE DOPLŇ ID KANÁLU PRO PŘÍKAZ /PROFIL
-]
+# ==========================================
+# NASTAVENÍ OPRÁVNĚNÍ
+# ==========================================
+POVOLENE_KANALY_PROFIL = [1394695584383762569, 1394695584383762570, 1394695584383762571, 1394695584383762572, 1394695584383762573, 1394695584383762574] # ZDE DOPLŇ ID KANÁLU
+POVOLENE_ROLE_PROFIL = [1394695578801148019] # Pokud necháš prázdné [], může to použít kdokoli. Pokud sem dáš ID, např. [12345, 67890], omezí se to na tyto role.
 
 MONGO_URI = "mongodb+srv://kubiqcz1:Aluska78@calicore.kmnmj4h.mongodb.net/?appName=CaliCore"
 klient = pymongo.MongoClient(MONGO_URI)
@@ -87,10 +89,18 @@ class ProfilCog(commands.Cog):
 
     @app_commands.command(name="profil", description="Zobrazí tvůj aktuální osobní RP profil (průkazy, zbraně, vozidla).")
     async def profil_command(self, interaction: discord.Interaction):
-        if interaction.channel_id not in POVOLENE_KANALY_PROFIL:
+        # 1. KONTROLA KANÁLU
+        if POVOLENE_KANALY_PROFIL and interaction.channel_id not in POVOLENE_KANALY_PROFIL:
             spravne_kanaly = ", ".join([f"<#{k_id}>" for k_id in POVOLENE_KANALY_PROFIL])
             await interaction.response.send_message(f"❌ Tento příkaz lze použít pouze v kanálech: {spravne_kanaly}", ephemeral=True)
             return
+            
+        # 2. KONTROLA ROLE
+        if POVOLENE_ROLE_PROFIL:
+            ma_roli = any(role.id in POVOLENE_ROLE_PROFIL for role in interaction.user.roles)
+            if not ma_roli:
+                await interaction.response.send_message("❌ Nemáš potřebnou roli pro použití tohoto příkazu.", ephemeral=True)
+                return
 
         db = nacti_databazi()
         hrac_id = str(interaction.user.id)
