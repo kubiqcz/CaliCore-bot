@@ -2,33 +2,18 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import pymongo
-import os
+from cogs.profil import aktualizuj_mdt_profil
 
 # ==========================================
-# POVOLENÉ KANÁLY PRO PŘÍKAZ /PROFIL
+# NASTAVENÍ OPRÁVNĚNÍ MDT PRŮKAZY
 # ==========================================
-POVOLENE_KANALY_PROFIL = [
-    1394695584383762569, 1394695584383762570, 1394695584383762571, 1394695584383762572, 1394695584383762573, 1394695584383762574 # ZDE DOPLŇ ID KANÁLU (např. bot-příkazy)
-    # Můžeš sem přidat další ID oddělená čárkou, pokud chceš příkaz povolit na více místech
-]
+MDT_PRUKAZY_ID = 1522513841705975869 # ID KANÁLU PRO PRŮKAZY
+POVOLENE_ROLE_MDT = [1523660335406383164] # ZDE DOPLŇ ID ROLE
 
-# ==========================================
-# NAPOJENÍ NA MONGODB CLOUD
-# ==========================================
 MONGO_URI = "mongodb+srv://kubiqcz1:Aluska78@calicore.kmnmj4h.mongodb.net/?appName=CaliCore"
 klient = pymongo.MongoClient(MONGO_URI)
 db_cloud = klient["calicore_databaze"]
 kolekce_hraci = db_cloud["hraci"]
-
-PRUKAZY_MAP = {
-    "rp_a": "Řidičský průkaz - Skupina A (Moto)",
-    "rp_b": "Řidičský průkaz - Skupina B (Auto)",
-    "rp_c": "Řidičský průkaz - Skupina C (Náklaďák)",
-    "rp_t": "Řidičský průkaz - Skupina T (Traktor)",
-    "zp_a": "Zbrojní průkaz - Skupina A",
-    "zp_b": "Zbrojní průkaz - Skupina B",
-    "zp_c": "Zbrojní průkaz - Skupina C"
-}
 
 def nacti_databazi():
     data = {}
@@ -36,76 +21,84 @@ def nacti_databazi():
         data[str(hrac["_id"])] = hrac
     return data
 
-def vytvor_profil_embed(hrac_id, hrac_jmeno=None, db_data=None):
-    if db_data is None:
-        db_data = nacti_databazi()
+def uloz_databazi(data):
+    for hrac_id, hrac_data in data.items():
+        hrac_data["_id"] = str(hrac_id)
+        kolekce_hraci.replace_one({"_id": str(hrac_id)}, hrac_data, upsert=True)
 
-    hrac_data = db_data.get(str(hrac_id), {})
-    
-    embed = discord.Embed(title="📁 Osobní RP Profil", color=discord.Color.gold())
-    if hrac_jmeno:
-        embed.description = f"Výpis z centrální databáze pro občana: {hrac_jmeno}"
-    
-    prukazy = hrac_data.get("prukazy", [])
-    if prukazy:
-        prukazy_text = "\n".join([f"• {PRUKAZY_MAP.get(p, p)}" for p in prukazy])
-    else:
-        prukazy_text = "❌ Žádné vydané průkazy"
-    embed.add_field(name="🪪 Průkazy a Licence", value=prukazy_text, inline=False)
-
-    zbrane = hrac_data.get("zbrane", [])
-    if zbrane:
-        zbrane_text = "\n".join([f"• {z['typ']} (SN: `{z['sn']}`)" for z in zbrane])
-    else:
-        zbrane_text = "❌ Žádné registrované zbraně"
-    embed.add_field(name="🔫 Registr Zbraní", value=zbrane_text, inline=False)
-
-    vozidla = hrac_data.get("vozidla", [])
-    if vozidla:
-        vozidla_text = "\n".join([f"• {v['model']} - {v['barva']} (RZ: `{v['spz']}`)" for v in vozidla])
-    else:
-        vozidla_text = "❌ Žádná registrovaná vozidla"
-    embed.add_field(name="🚘 Registr Vozidel", value=vozidla_text, inline=False)
-
-    embed.set_footer(text=f"Číslo ID: {hrac_id} | CaliCore System")
-    return embed
-
-async def aktualizuj_mdt_profil(bot, hrac_id):
-    db = nacti_databazi()
-    hrac_id_str = str(hrac_id)
-    hrac_data = db.get(hrac_id_str, {})
-    
-    vlakno_id = hrac_data.get("mdt_vlakno_id")
-    zprava_id = hrac_data.get("mdt_zprava_id")
-    
-    if not vlakno_id or not zprava_id:
-        return 
-        
-    try:
-        vlakno = await bot.fetch_channel(vlakno_id)
-        zprava = await vlakno.fetch_message(zprava_id)
-        novy_embed = vytvor_profil_embed(hrac_id_str, None, db)
-        await zprava.edit(embed=novy_embed)
-    except Exception as e:
-        print(f"Chyba při updatu profilu na MDT: {e}")
-
-class ProfilCog(commands.Cog):
+class PrukazyCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="profil", description="Zobrazí tvůj aktuální osobní RP profil (průkazy, zbraně, vozidla).")
-    async def profil_command(self, interaction: discord.Interaction):
-        # OCHRANA PROTI POUŽITÍ VE ŠPATNÉM KANÁLU
-        if interaction.channel_id not in POVOLENE_KANALY_PROFIL:
-            # Vytvoříme zmínku kanálu (např. <#123456789>), aby hráč věděl, kam má jít
-            spravne_kanaly = ", ".join([f"<#{k_id}>" for k_id in POVOLENE_KANALY_PROFIL])
-            await interaction.response.send_message(f"❌ Tento příkaz lze použít pouze v kanálech: {spravne_kanaly}", ephemeral=True)
+    prukazy_choices = [
+        app_commands.Choice(name="Řidičský průkaz - A (Moto)", value="rp_a"),
+        app_commands.Choice(name="Řidičský průkaz - B (Auto)", value="rp_b"),
+        app_commands.Choice(name="Řidičský průkaz - C (Náklaďák)", value="rp_c"),
+        app_commands.Choice(name="Řidičský průkaz - T (Traktor)", value="rp_t"),
+        app_commands.Choice(name="Zbrojní průkaz - Skupina A", value="zp_a"),
+        app_commands.Choice(name="Zbrojní průkaz - Skupina B", value="zp_b"),
+        app_commands.Choice(name="Zbrojní průkaz - Skupina C", value="zp_c"),
+    ]
+
+    def ma_mdt_opravneni(self, interaction: discord.Interaction):
+        if not POVOLENE_ROLE_MDT: return True
+        return any(role.id in POVOLENE_ROLE_MDT for role in interaction.user.roles)
+
+    @app_commands.command(name="vydat_prukaz", description="[MDT] Vydá občanu průkaz / licenci.")
+    @app_commands.describe(hrac_id="Číslo ID občana", typ="Vyber typ průkazu")
+    @app_commands.choices(typ=prukazy_choices)
+    async def vydat_prukaz(self, interaction: discord.Interaction, hrac_id: str, typ: app_commands.Choice[str]):
+        if interaction.channel_id != MDT_PRUKAZY_ID:
+            await interaction.response.send_message(f"❌ Tento příkaz lze použít pouze v <#{MDT_PRUKAZY_ID}>.", ephemeral=True)
+            return
+        if not self.ma_mdt_opravneni(interaction):
+            await interaction.response.send_message("❌ Nemáš policejní/úřední oprávnění pro MDT registry.", ephemeral=True)
             return
 
         db = nacti_databazi()
-        hrac_id = str(interaction.user.id)
-        embed = vytvor_profil_embed(hrac_id, interaction.user.mention, db)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        if hrac_id not in db:
+            db[hrac_id] = {"prukazy": [], "zbrane": [], "vozidla": []}
+        if "prukazy" not in db[hrac_id]:
+            db[hrac_id]["prukazy"] = []
+
+        if typ.value in db[hrac_id]["prukazy"]:
+            await interaction.response.send_message("❌ Tento občan už tento průkaz vlastní.", ephemeral=True)
+            return
+
+        db[hrac_id]["prukazy"].append(typ.value)
+        uloz_databazi(db)
+
+        embed = discord.Embed(title="🪪 Vydání nového průkazu", color=discord.Color.green())
+        embed.add_field(name="Typ průkazu", value=f"**{typ.name}**", inline=False)
+        embed.add_field(name="Majitel", value=f"<@{hrac_id}> (ID: `{hrac_id}`)", inline=False)
+        
+        await interaction.response.send_message(embed=embed)
+        await aktualizuj_mdt_profil(self.bot, hrac_id)
+
+    @app_commands.command(name="odebrat_prukaz", description="[MDT] Odebere občanu průkaz / licenci.")
+    @app_commands.describe(hrac_id="Číslo ID občana", typ="Vyber typ průkazu ke smazání")
+    @app_commands.choices(typ=prukazy_choices)
+    async def odebrat_prukaz(self, interaction: discord.Interaction, hrac_id: str, typ: app_commands.Choice[str]):
+        if interaction.channel_id != MDT_PRUKAZY_ID:
+            await interaction.response.send_message(f"❌ Tento příkaz lze použít pouze v <#{MDT_PRUKAZY_ID}>.", ephemeral=True)
+            return
+        if not self.ma_mdt_opravneni(interaction):
+            await interaction.response.send_message("❌ Nemáš policejní/úřední oprávnění pro MDT registry.", ephemeral=True)
+            return
+
+        db = nacti_databazi()
+        if hrac_id in db and "prukazy" in db[hrac_id] and typ.value in db[hrac_id]["prukazy"]:
+            db[hrac_id]["prukazy"].remove(typ.value)
+            uloz_databazi(db)
+            
+            embed = discord.Embed(title="🚨 Zrušení platnosti průkazu", color=discord.Color.red())
+            embed.add_field(name="Typ průkazu", value=f"**{typ.name}**", inline=False)
+            embed.add_field(name="Odebráno majiteli", value=f"<@{hrac_id}> (ID: `{hrac_id}`)", inline=False)
+            
+            await interaction.response.send_message(embed=embed)
+            await aktualizuj_mdt_profil(self.bot, hrac_id)
+        else:
+            await interaction.response.send_message("❌ Tento občan daný průkaz nevlastní.", ephemeral=True)
 
 async def setup(bot):
-    await bot.add_cog(ProfilCog(bot))
+    await bot.add_cog(PrukazyCog(bot))
