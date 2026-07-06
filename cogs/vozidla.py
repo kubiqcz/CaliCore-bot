@@ -2,12 +2,13 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import pymongo
-
 from cogs.profil import aktualizuj_mdt_profil
 
 # ==========================================
-MDT_REGISTR_VOZIDEL_ID = 1522684016388472983 # ZDE DOPLŇ ID KANÁLU
+# NASTAVENÍ OPRÁVNĚNÍ MDT VOZIDLA
 # ==========================================
+MDT_REGISTR_VOZIDEL_ID = 1522684016388472983 # ID KANÁLU PRO VOZIDLA
+POVOLENE_ROLE_MDT = [1523660335406383164] # ZDE DOPLŇ ID ROLE (např. Policie, Admin)
 
 MONGO_URI = "mongodb+srv://kubiqcz1:Aluska78@calicore.kmnmj4h.mongodb.net/?appName=CaliCore"
 klient = pymongo.MongoClient(MONGO_URI)
@@ -42,12 +43,19 @@ class VozidlaCog(commands.Cog):
         shody = [auto for auto in SEZNAM_VOZIDEL if current.lower() in auto.lower()]
         return [app_commands.Choice(name=auto, value=auto) for auto in shody][:25]
 
+    def ma_mdt_opravneni(self, interaction: discord.Interaction):
+        if not POVOLENE_ROLE_MDT: return True
+        return any(role.id in POVOLENE_ROLE_MDT for role in interaction.user.roles)
+
     @app_commands.command(name="registrovat_vozidlo", description="[MDT] Zaregistruje vozidlo na občana.")
     @app_commands.describe(hrac_id="Číslo ID občana", model="Začni psát značku auta...", barva="Barva vozidla", spz="SPZ ze hry")
     @app_commands.autocomplete(model=auto_naseptavac)
     async def registrovat_vozidlo(self, interaction: discord.Interaction, hrac_id: str, model: str, barva: str, spz: str):
         if interaction.channel_id != MDT_REGISTR_VOZIDEL_ID:
-            await interaction.response.send_message("❌ Tento příkaz lze použít pouze v kanálu pro registr vozidel.", ephemeral=True)
+            await interaction.response.send_message(f"❌ Tento příkaz lze použít pouze v <#{MDT_REGISTR_VOZIDEL_ID}>.", ephemeral=True)
+            return
+        if not self.ma_mdt_opravneni(interaction):
+            await interaction.response.send_message("❌ Nemáš policejní/úřední oprávnění pro MDT registry.", ephemeral=True)
             return
 
         db = nacti_databazi()
@@ -78,7 +86,10 @@ class VozidlaCog(commands.Cog):
     @app_commands.describe(hrac_id="Číslo ID občana", spz="SPZ vozidla ke smazání")
     async def odstranit_vozidlo(self, interaction: discord.Interaction, hrac_id: str, spz: str):
         if interaction.channel_id != MDT_REGISTR_VOZIDEL_ID:
-            await interaction.response.send_message("❌ Tento příkaz lze použít pouze v kanálu pro registr vozidel.", ephemeral=True)
+            await interaction.response.send_message(f"❌ Tento příkaz lze použít pouze v <#{MDT_REGISTR_VOZIDEL_ID}>.", ephemeral=True)
+            return
+        if not self.ma_mdt_opravneni(interaction):
+            await interaction.response.send_message("❌ Nemáš policejní/úřední oprávnění pro MDT registry.", ephemeral=True)
             return
 
         db = nacti_databazi()
@@ -93,7 +104,6 @@ class VozidlaCog(commands.Cog):
                 embed = discord.Embed(title="🚨 Záznam o vyřazení vozidla", color=discord.Color.red())
                 embed.add_field(name="SPZ (RZ)", value=f"`{spz_upper}`", inline=False)
                 embed.add_field(name="Odebráno majiteli", value=f"<@{hrac_id}>", inline=True)
-                
                 await interaction.response.send_message(embed=embed)
                 await aktualizuj_mdt_profil(self.bot, hrac_id)
             else:
