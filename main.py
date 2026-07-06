@@ -27,3 +27,4 @@ keep_alive()
 
 token = os.environ.get("DISCORD_TOKEN")
 bot.run(token)
+# Tímto se zapne webový server na pozadí pro cron-job
