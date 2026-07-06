@@ -49,16 +49,16 @@ class IdModal(discord.ui.Modal, title='Vydání Průkazu Totožnosti'):
         db[hrac_id]["datum_narozeni"] = self.datum_narozeni.value
         db[hrac_id]["misto_narozeni"] = self.misto_narozeni.value
 
-        # VEŘEJNÁ OBČANKA DO KANÁLU
+  # VEŘEJNÁ OBČANKA DO KANÁLU
         embed_obcanka = discord.Embed(color=discord.Color.dark_theme())
         embed_obcanka.description = (
             f"{interaction.user.mention}\n\n"
             f"**Roblox nick:** {self.roblox_nick.value}\n"
             f"**Jméno a Příjmení:** {self.jmeno.value}\n"
             f"**Datum narození:** {self.datum_narozeni.value}\n"
-            f"**Místo narození:** {self.misto_narozeni.value}"
+            f"**Místo narození:** {self.misto_narozeni.value}\n\n"
+            f"-# Číslo průkazu: {hrac_id}"
         )
-        embed_obcanka.set_footer(text=f" -# Číslo průkazu: \{hrac_id}\"")
         
         # Odeslání veřejně
         await interaction.response.send_message(embed=embed_obcanka)
