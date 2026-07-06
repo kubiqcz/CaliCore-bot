@@ -58,7 +58,7 @@ class IdModal(discord.ui.Modal, title='Vydání Průkazu Totožnosti'):
             f"**Datum narození:** {self.datum_narozeni.value}\n"
             f"**Místo narození:** {self.misto_narozeni.value}"
         )
-        embed_obcanka.set_footer(text=f"Číslo průkazu: \"{hrac_id}\"")
+        embed_obcanka.set_footer(text=f" -# Číslo průkazu: \{hrac_id}\"")
         
         # Odeslání veřejně
         await interaction.response.send_message(embed=embed_obcanka)
