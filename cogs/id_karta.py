@@ -27,55 +27,55 @@ def uloz_databazi(data):
         hrac_data["_id"] = str(hrac_id)
         kolekce_hraci.replace_one({"_id": str(hrac_id)}, hrac_data, upsert=True)
 
-# Třída definující samotný Modal (vyskakovací okno)
-class IdModal(discord.ui.Modal, title='Založení nové ID Karty'):
-    jmeno = discord.ui.TextInput(
-        label='RP Jméno',
+class IdModal(discord.ui.Modal, title='Vydání Průkazu Totožnosti'):
+    roblox_nick = discord.ui.TextInput(
+        label='Roblox Nick',
         style=discord.TextStyle.short,
-        placeholder='Zadej své křestní RP jméno...',
-        required=True,
-        max_length=50
-    )
-    
-    prijmeni = discord.ui.TextInput(
-        label='RP Příjmení',
-        style=discord.TextStyle.short,
-        placeholder='Zadej své RP příjmení...',
+        placeholder='Tvůj přesný nick na Robloxu...',
         required=True,
         max_length=50
     )
 
-    vek = discord.ui.TextInput(
-        label='RP Věk',
+    jmeno = discord.ui.TextInput(
+        label='Jméno a příjmení',
         style=discord.TextStyle.short,
-        placeholder='Např. 25',
+        placeholder='John Pork...',
         required=True,
-        max_length=3
+        max_length=50
+    )
+
+    datum_narozeni = discord.ui.TextInput(
+        label='Datum narození postavy DD/MM/YYYY',
+        style=discord.TextStyle.short,
+        placeholder='18/06/2001',
+        required=True,
+        max_length=20
+    )
+
+    misto_narozeni = discord.ui.TextInput(
+        label='Místo narození postavy',
+        style=discord.TextStyle.short,
+        placeholder='Los Angeles, CA',
+        required=True,
+        max_length=100
     )
 
     def __init__(self, bot):
         super().__init__()
         self.bot = bot
 
-    # Co se stane, když uživatel formulář odešle
     async def on_submit(self, interaction: discord.Interaction):
-        # Kontrola, jestli hráč zadal do věku opravdu číslo
-        try:
-            vek_int = int(self.vek.value)
-        except ValueError:
-            await interaction.response.send_message("❌ Věk musí být zapsán jako číslo!", ephemeral=True)
-            return
-
         db = nacti_databazi()
         hrac_id = str(interaction.user.id)
 
         if hrac_id not in db:
             db[hrac_id] = {"prukazy": [], "zbrane": [], "vozidla": []}
 
-        # Uložení dat z formuláře
+        # Uložení všech nových dat z formuláře do databáze
+        db[hrac_id]["roblox_nick"] = self.roblox_nick.value
         db[hrac_id]["jmeno"] = self.jmeno.value
-        db[hrac_id]["prijmeni"] = self.prijmeni.value
-        db[hrac_id]["vek"] = vek_int
+        db[hrac_id]["datum_narozeni"] = self.datum_narozeni.value
+        db[hrac_id]["misto_narozeni"] = self.misto_narozeni.value
 
         await interaction.response.defer(ephemeral=True)
 
@@ -83,7 +83,9 @@ class IdModal(discord.ui.Modal, title='Založení nové ID Karty'):
             forum_kanal = self.bot.get_channel(FORUM_MDT_ID)
             if forum_kanal:
                 embed_mdt = vytvor_profil_embed(hrac_id, interaction.user.mention, db)
-                nazev_vlakna = f"Složka: {self.jmeno.value} {self.prijmeni.value}"
+                
+                # ZDE BÝVALA CHYBA: už nevoláme self.prijmeni.value
+                nazev_vlakna = f"Složka: {self.jmeno.value}"
                 
                 vlakno = await forum_kanal.create_thread(
                     name=nazev_vlakna, 
@@ -95,9 +97,10 @@ class IdModal(discord.ui.Modal, title='Založení nové ID Karty'):
                 db[hrac_id]["mdt_zprava_id"] = vlakno.message.id
 
             uloz_databazi(db)
-            await interaction.followup.send(f"✅ ID Karta pro {self.jmeno.value} {self.prijmeni.value} byla úspěšně vytvořena a uložena do databáze!")
+            # ZDE BÝVALA CHYBA: už nevoláme self.prijmeni.value
+            await interaction.followup.send(f"✅ Průkaz totožnosti pro {self.jmeno.value} byl vytvořen!")
         except Exception as e:
-            await interaction.followup.send(f"❌ Nastala chyba při zakládání složky ve fóru. Zkontroluj oprávnění bota. Detail: {e}")
+            await interaction.followup.send(f"❌ Nastala chyba při zakládání složky ve fóru. Zkontroluj oprávnění. Detail: {e}")
 
 class IdKartaCog(commands.Cog):
     def __init__(self, bot):
@@ -105,19 +108,16 @@ class IdKartaCog(commands.Cog):
 
     @app_commands.command(name="id", description="Založí novou ID kartu a MDT složku pomocí formuláře.")
     async def id_karta(self, interaction: discord.Interaction):
-        # KONTROLA KANÁLU
         if POVOLENE_KANALY_ID and interaction.channel_id not in POVOLENE_KANALY_ID:
             kanaly = ", ".join([f"<#{k}>" for k in POVOLENE_KANALY_ID])
             await interaction.response.send_message(f"❌ Příkaz /id lze použít pouze v: {kanaly}", ephemeral=True)
             return
 
-        # KONTROLA ROLE
         if POVOLENE_ROLE_ID:
             if not any(role.id in POVOLENE_ROLE_ID for role in interaction.user.roles):
                 await interaction.response.send_message("❌ Nemáš oprávnění k založení ID karty.", ephemeral=True)
                 return
         
-        # Samotné vyvolání okna
         await interaction.response.send_modal(IdModal(self.bot))
 
 async def setup(bot):
