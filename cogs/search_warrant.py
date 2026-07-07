@@ -6,15 +6,15 @@ import random
 from datetime import datetime, timedelta
 
 # ==========================================
-# NASTAVENÍ OPRÁVNĚNÍ A KANÁLŮ (Doplň správná ID pro Search Warrants!)
+# NASTAVENÍ OPRÁVNĚNÍ A KANÁLŮ
 # ==========================================
 ROLE_POLICIE_ID = 1523660335406383164  
 ROLE_SOUDCE_ID = 1524106694915788870   
 
-# Zde doplň ID nových kanálů podle tvého obrázku:
-KANAL_ZADOST_ARCHIV_SW_ID = 1524108627353538803 # "# žádost-search-warrant" (Archiv)
-KANAL_SOUD_SW_ID = 1524154021806608444          # "# search-warranty" (Stůl soudu)
-KANAL_AKTIVNI_SW_ID = 1524134603357421659       # "# aktivní-search-warrant" (Rozeslání)
+# Kanály pro Search Warrant podle obrázku
+KANAL_ZADOST_ARCHIV_SW_ID = 1524134941066006680 # "# žádost-search-warrant" (Zde zpráva zůstane navždy)
+KANAL_SOUD_SW_ID = 1524154021806608444          # "# search-warranty" (Stůl soudu - zde po kliknutí zmizí)
+KANAL_AKTIVNI_SW_ID = 1524134603357421659       # "# aktivní-search-warrant" (Aktivní pro LEO - po 48h mizí)
 
 # ==========================================
 # DATABÁZE
@@ -22,14 +22,16 @@ KANAL_AKTIVNI_SW_ID = 1524134603357421659       # "# aktivní-search-warrant" (R
 MONGO_URI = "mongodb+srv://kubiqcz1:Aluska78@calicore.kmnmj4h.mongodb.net/?appName=CaliCore"
 klient = pymongo.MongoClient(MONGO_URI)
 db_cloud = klient["calicore_databaze"]
-# Nová tabulka speciálně pro Search Warrants
 kolekce_sw = db_cloud["search_warrants_log"] 
 
-# --- TŘÍDA PRO FORMULÁŘ SOUDCE (Vydání SW) ---
-class SoudceSWModal(discord.ui.Modal, title='Doplnění povolení k prohlídce'):
-    jmeno_soudce = discord.ui.TextInput(label='Jméno soudce (Postava)', style=discord.TextStyle.short, required=True)
-    nocni_sluzba = discord.ui.TextInput(label='Noční služba (Povoleno / Zamítnuto)', style=discord.TextStyle.short, required=True)
-    no_knock = discord.ui.TextInput(label='Vstup bez zaklepání (Povoleno / Zamítnuto)', style=discord.TextStyle.short, required=True)
+# --- TŘÍDA PRO FORMULÁŘ SOUDCE (Podpis a finální schválení) ---
+class SoudceSWModal(discord.ui.Modal, title='Oficiální schválení příkazu'):
+    jmeno_soudce = discord.ui.TextInput(
+        label='Podpis soudce (Jméno postavy)', 
+        style=discord.TextStyle.short, 
+        placeholder='JUDr. Antonín Sova', 
+        required=True
+    )
 
     def __init__(self, puvodni_zprava, puvodni_view):
         super().__init__()
@@ -39,27 +41,25 @@ class SoudceSWModal(discord.ui.Modal, title='Doplnění povolení k prohlídce')
     async def on_submit(self, interaction: discord.Interaction):
         embed = self.puvodni_zprava.embeds[0]
         
-        # Přečtení metadat z footeru
+        # Načtení metadat z footeru
         footer_text = embed.footer.text
         sw_cislo = footer_text.split(" | ")[0].replace("SW Číslo: ", "").strip()
         archiv_msg_id = int(footer_text.split(" | ")[1].replace("Archiv ID: ", "").strip())
         
         ted = datetime.now()
 
-        # Doplnění textu zatykače
-        novy_text = embed.description.replace("[ČEKÁ NA SOUDCE - NOC]", self.nocni_sluzba.value)
-        novy_text = novy_text.replace("[ČEKÁ NA SOUDCE - NOKNOCK]", self.no_knock.value)
+        # Dosazení podpisu soudce a data na konec předlohy
+        novy_text = embed.description.replace("[ČEKÁ NA ČAS VYDÁNÍ]", ted.strftime("%d.%m.%Y %H:%M"))
         novy_text = novy_text.replace("[ČEKÁ NA PODPIS SOUDCE]", self.jmeno_soudce.value)
-        novy_text = novy_text.replace("[ČEKÁ NA ČAS VYDÁNÍ]", ted.strftime("%d.%m.%Y %H:%M"))
 
         embed.description = novy_text
         embed.color = discord.Color.green()
-        embed.title = f"🏠 PŘÍKAZ K PROHLÍDCE VYDÁN (Aktivní)"
+        embed.title = "🏠 PŘÍKAZ K PROHLÍDCE VYDÁN (Aktivní)"
 
         # 1. Okamžité SMAZÁNÍ ze stolu soudu
         await self.puvodni_zprava.delete()
 
-        # 2. Úprava zprávy v archivu
+        # 2. Úprava existující zprávy v kanálu žádost-search-warrant (Archiv)
         kanal_archiv = interaction.client.get_channel(KANAL_ZADOST_ARCHIV_SW_ID)
         if kanal_archiv:
             try:
@@ -67,11 +67,11 @@ class SoudceSWModal(discord.ui.Modal, title='Doplnění povolení k prohlídce')
                 await msg_archiv.edit(embed=embed)
             except discord.NotFound: pass
 
-        # 3. Odeslání do Přehledu aktivních SW
+        # 3. Odeslání do Přehledu aktivních search-warrantů
         kanal_aktivni = interaction.client.get_channel(KANAL_AKTIVNI_SW_ID)
         msg_aktivni = await kanal_aktivni.send(embed=embed) if kanal_aktivni else None
 
-        # 4. Uložení do databáze (zde nepotřebujeme fórum)
+        # 4. Uložení do DB pro stopky (48 hodin) a mazání
         kolekce_sw.insert_one({
             "sw_cislo": sw_cislo,
             "msg_archiv_id": archiv_msg_id,
@@ -80,7 +80,7 @@ class SoudceSWModal(discord.ui.Modal, title='Doplnění povolení k prohlídce')
             "status": "aktivni"
         })
 
-        await interaction.response.send_message("✅ Povolení k prohlídce bylo vydáno a rozesláno.", ephemeral=True)
+        await interaction.response.send_message("✅ Příkaz k prohlídce byl podepsán a úspěšně vydán.", ephemeral=True)
 
 # --- TŘÍDA PRO TLAČÍTKA SOUDCE ---
 class SearchWarrantView(discord.ui.View):
@@ -103,11 +103,13 @@ class SearchWarrantView(discord.ui.View):
         archiv_msg_id = int(footer_text.split(" | ")[1].replace("Archiv ID: ", "").strip())
 
         embed.color = discord.Color.red()
-        embed.title = "📄 ŽÁDOST O PROHLÍDKU ZAMÍTNUTA"
+        embed.title = "🏠 ŽÁDOST O PROHLÍDKU ZAMÍTNUTA"
         embed.description += f"\n\n**👨‍⚖️ Rozhodnutí soudu:** Zamítnuto soudcem {interaction.user.mention}"
 
+        # 1. Smazání ze stolu soudu
         await interaction.message.delete()
 
+        # 2. Úprava v kanálu žádost-search-warrant (Archiv)
         kanal_archiv = interaction.client.get_channel(KANAL_ZADOST_ARCHIV_SW_ID)
         if kanal_archiv:
             try:
@@ -115,15 +117,40 @@ class SearchWarrantView(discord.ui.View):
                 await msg_archiv.edit(embed=embed)
             except discord.NotFound: pass
         
-        await interaction.response.send_message("✅ Žádost byla zamítnuta a zaznamenána v archivu.", ephemeral=True)
+        await interaction.response.send_message("✅ Žádost byla zamítnuta a archivována.", ephemeral=True)
 
-# --- FORMULÁŘ PRO POLICISTU ---
-class SearchWarrantModal(discord.ui.Modal, title='Příprava Search Warrant - Policie'):
-    adresa = discord.ui.TextInput(label='Adresa / Lokace', style=discord.TextStyle.short, required=True)
-    popis_mista = discord.ui.TextInput(label='Popis místa a vozidel k prohlídce', style=discord.TextStyle.paragraph, max_length=500, required=True)
-    predmety = discord.ui.TextInput(label='Předměty k zabavení (Důkazy, drogy, zbraně)', style=discord.TextStyle.paragraph, max_length=800, required=True)
-    duvod = discord.ui.TextInput(label='Důvodné podezření (Probable Cause)', style=discord.TextStyle.paragraph, max_length=800, required=True)
-    pozadavky = discord.ui.TextInput(label='Speciální žádosti (Noc / Vstup bez zaklepání)', placeholder='Např. Žádáme o noční službu z důvodu...', style=discord.TextStyle.short, required=False)
+# --- FORMULÁŘ PRO POLICISTU (Max 5 polí podle limitu Discordu) ---
+class SearchWarrantModal(discord.ui.Modal, title='Příprava Search Warrant'):
+    zadatel = discord.ui.TextInput(
+        label='1. Žadatel (Affiant)', 
+        style=discord.TextStyle.short, 
+        placeholder='Hodnost, Jméno, sbor (Např. Detektiv John Doe, LAPD)', 
+        required=True
+    )
+    misto = discord.ui.TextInput(
+        label='2. Místo / Osoba k prohlídce', 
+        style=discord.TextStyle.paragraph, 
+        placeholder='Adresa/Lokace:\nPopis místa:\nVozidla k prohlídce:', 
+        required=True
+    )
+    predmety = discord.ui.TextInput(
+        label='3. Předměty k zabavení', 
+        style=discord.TextStyle.paragraph, 
+        placeholder='Co přesně hledáte? Vypište zbraně, drogy, hotovost, elektroniku atd.', 
+        required=True
+    )
+    duvod = discord.ui.TextInput(
+        label='4. Důvodné podezření (Probable Cause)', 
+        style=discord.TextStyle.paragraph, 
+        placeholder='Stručný RP důvod, proč vám soudce dává povolení (stačí 1-2 věty).', 
+        required=True
+    )
+    opravneni = discord.ui.TextInput(
+        label='5. Zvláštní oprávnění (Special Requests)', 
+        style=discord.TextStyle.paragraph, 
+        placeholder='[ ] Noční služba (Night Service)\n[ ] Vstup bez zaklepání (No-Knock Entry)\n(Vepište podrobnosti)', 
+        required=True
+    )
 
     def __init__(self, bot):
         super().__init__()
@@ -132,28 +159,28 @@ class SearchWarrantModal(discord.ui.Modal, title='Příprava Search Warrant - Po
     async def on_submit(self, interaction: discord.Interaction):
         sw_cislo = str(random.randint(10000, 99999))
 
+        # Sestavení textu přesně podle tvé šablony
         sw_text = f"""**VRCHNÍ SOUD STÁTU KALIFORNIE, OKRES LOS ANGELES**
 (SUPERIOR COURT OF CALIFORNIA, COUNTY OF LOS ANGELES)
 
 **PŘÍKAZ K PROHLÍDCE (SEARCH WARRANT)**
 Číslo příkazu: **SW-2026-{sw_cislo}**
 
-**Žadatel (Affiant):** {interaction.user.mention}
+**Žadatel (Affiant):** {self.zadatel.value}
 
-**1. MÍSTO NEBO OSOBA K PROHLÍDCE:**
-**Adresa/Lokace:** {self.adresa.value}
-**Popis místa a vozidel:** {self.popis_mista.value}
+**1. MÍSTO NEBO OSOBA K PROHLÍDCE (Place/Person to be searched):**
+{self.misto.value}
 
-**2. PŘEDMĚTY K ZABAVENÍ:**
+**2. PŘEDMĚTY K ZABAVENÍ (Evidence to be seized):**
+*Co přesně hledáte (pokud najdete něco jiného nelegálního, zabavuje se to také, ale toto je primární cíl):*
 {self.predmety.value}
 
 **3. DŮVODNÉ PODEZŘENÍ (Probable Cause):**
 {self.duvod.value}
 
-**4. ZVLÁŠTNÍ OPRÁVNĚNÍ:**
-*Poznámka žádajícího:* {self.pozadavky.value if self.pozadavky.value else "Žádné"}
-**Noční služba (Night Service):** [ČEKÁ NA SOUDCE - NOC]
-**Vstup bez zaklepání (No-Knock):** [ČEKÁ NA SOUDCE - NOKNOCK]
+**4. ZVLÁŠTNÍ OPRÁVNĚNÍ (Special Requests):**
+*Zaškrtněte, pokud je potřeba pro RP akci:*
+{self.opravneni.value}
 
 **PŘÍKAZ:**
 Tímto nařizuji jakémukoliv strážci zákona (Peace Officer) v okrese Los Angeles vykonat tento příkaz k prohlídce, zajistit uvedené důkazy a doručit je soudu nebo zajistit jejich uložení v evidenci.
@@ -164,7 +191,7 @@ Tímto nařizuji jakémukoliv strážci zákona (Peace Officer) v okrese Los Ang
 
         embed = discord.Embed(title="⏳ ŽÁDOST O PROHLÍDKU (Čeká na soud)", color=discord.Color.orange(), description=sw_text)
 
-        # 1. Odeslání do archivu
+        # 1. Odeslání do archivu (žádost-search-warrant)
         kanal_archiv = self.bot.get_channel(KANAL_ZADOST_ARCHIV_SW_ID)
         msg_archiv = None
         if kanal_archiv:
@@ -174,7 +201,7 @@ Tímto nařizuji jakémukoliv strážci zákona (Peace Officer) v okrese Los Ang
             embed.set_footer(text=f"SW Číslo: {sw_cislo} | Archiv ID: {msg_archiv.id}")
             await msg_archiv.edit(embed=embed)
 
-        # 2. Odeslání na stůl soudu
+        # 2. Odeslání na stůl soudu (search-warranty)
         kanal_soud = self.bot.get_channel(KANAL_SOUD_SW_ID)
         if kanal_soud:
             await kanal_soud.send(embed=embed, view=SearchWarrantView())
@@ -186,7 +213,7 @@ class SearchWarrantCog(commands.Cog):
         self.bot = bot
         self.kontrola_expirace_sw.start() 
 
-    # --- UZAVŘENÍ MANUÁLNĚ ---
+    # --- UZAVŘENÍ MANUÁLNĚ (Přes číslo příkazu) ---
     @app_commands.command(name="sw_uzavrit", description="Uzavře příkaz k prohlídce pomocí jeho 5místného čísla.")
     @app_commands.describe(cislo_prikazu="Pouze těch 5 čísel na konci (např. 12345)")
     async def sw_uzavrit_command(self, interaction: discord.Interaction, cislo_prikazu: str):
@@ -222,7 +249,7 @@ class SearchWarrantCog(commands.Cog):
                 await msg_aktivni.delete()
             except discord.NotFound: pass
 
-        # Zápis do DB
+        # Zápis nového stavu do DB
         kolekce_sw.update_one({"_id": sw_data["_id"]}, {"$set": {"status": "uzavren"}})
 
     # --- AUTO-ZAVŘENÍ PO 48h ---
