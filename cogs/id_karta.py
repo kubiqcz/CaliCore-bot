@@ -10,6 +10,10 @@ FORUM_MDT_ID = 1453745209643896933 # ID FÓRA PRO MDT SLOŽKY
 POVOLENE_KANALY_ID = [1394695582760571070] # ID KANÁLU, KDE HRÁČI PÍŠOU /ID
 POVOLENE_ROLE_ID = [] 
 
+# --- NOVÉ NASTAVENÍ ROLÍ ---
+ROLE_ODEBRAT_ID = 1394695578801148018 # ID role, kterou bot sebere (např. "Neregistrovaný")
+ROLE_PRIDAT_ID = 1394695578801148019  # ID role, kterou bot přidá (např. "Občan")
+
 MONGO_URI = "mongodb+srv://kubiqcz1:Aluska78@calicore.kmnmj4h.mongodb.net/?appName=CaliCore"
 klient = pymongo.MongoClient(MONGO_URI)
 db_cloud = klient["calicore_databaze"]
@@ -29,7 +33,7 @@ def uloz_databazi(data):
 class IdModal(discord.ui.Modal, title='Vydání Průkazu Totožnosti'):
     roblox_nick = discord.ui.TextInput(label='Roblox Nick', style=discord.TextStyle.short, placeholder='Tvůj přesný nick na Robloxu...', required=True, max_length=50)
     jmeno = discord.ui.TextInput(label='Jméno a příjmení', style=discord.TextStyle.short, placeholder='John Pork...', required=True, max_length=50)
-    datum_narozeni = discord.ui.TextInput(label='Datum narození postavy', style=discord.TextStyle.short, placeholder='18/06/2001', required=True, max_length=20)
+    datum_narozeni = discord.ui.TextInput(label='Datum narození postavy DD/MM/YYYY', style=discord.TextStyle.short, placeholder='18/06/2001', required=True, max_length=20)
     misto_narozeni = discord.ui.TextInput(label='Místo narození postavy', style=discord.TextStyle.short, placeholder='Los Angeles, CA', required=True, max_length=100)
 
     def __init__(self, bot):
@@ -49,7 +53,7 @@ class IdModal(discord.ui.Modal, title='Vydání Průkazu Totožnosti'):
         db[hrac_id]["datum_narozeni"] = self.datum_narozeni.value
         db[hrac_id]["misto_narozeni"] = self.misto_narozeni.value
 
-  # VEŘEJNÁ OBČANKA DO KANÁLU
+        # VEŘEJNÁ OBČANKA DO KANÁLU (s malým šedým textem dole)
         embed_obcanka = discord.Embed(color=discord.Color.dark_theme())
         embed_obcanka.description = (
             f"{interaction.user.mention}\n\n"
@@ -62,6 +66,29 @@ class IdModal(discord.ui.Modal, title='Vydání Průkazu Totožnosti'):
         
         # Odeslání veřejně
         await interaction.response.send_message(embed=embed_obcanka)
+
+        # --- ZMĚNA PŘEZDÍVKY A ROLÍ ---
+        try:
+            # Discord povolí max 32 znaků v přezdívce
+            nova_prezdivka = f"{self.jmeno.value} | {self.roblox_nick.value}"
+            if len(nova_prezdivka) > 32:
+                nova_prezdivka = nova_prezdivka[:32]
+                
+            await interaction.user.edit(nick=nova_prezdivka)
+            
+            # Správa rolí
+            if interaction.guild:
+                role_pridat = interaction.guild.get_role(ROLE_PRIDAT_ID)
+                role_odebrat = interaction.guild.get_role(ROLE_ODEBRAT_ID)
+                
+                if role_odebrat and role_odebrat in interaction.user.roles:
+                    await interaction.user.remove_roles(role_odebrat)
+                if role_pridat:
+                    await interaction.user.add_roles(role_pridat)
+        except discord.Forbidden:
+            print("Chyba oprávnění: Bot nemohl změnit přezdívku nebo role. Zkontroluj hierarchii rolí.")
+        except Exception as e:
+            print(f"Chyba při změně profilu uživatele: {e}")
 
         # VYTVOŘENÍ FÓRA PRO MDT A AUTOMATICKÉ AKTUALIZACE
         try:
@@ -79,7 +106,6 @@ class IdModal(discord.ui.Modal, title='Vydání Průkazu Totožnosti'):
                 embed_profil = vytvor_profil_embed(hrac_id, interaction.user.mention, db)
                 profil_zprava = await vlakno.thread.send(embed=embed_profil)
                 
-                # Uložíme ID té druhé zprávy (profilu), aby se mohl měnit a občanka zůstala nedotčená!
                 db[hrac_id]["mdt_vlakno_id"] = vlakno.thread.id
                 db[hrac_id]["mdt_zprava_id"] = profil_zprava.id
 
