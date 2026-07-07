@@ -22,32 +22,38 @@ def nacti_databazi():
         data[str(hrac["_id"])] = hrac
     return data
 
-# --- TŘÍDA PRO TLAČÍTKA (SOUDCE) ---
-class ZatykacView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
+# --- TŘÍDA PRO FORMULÁŘ PODPISU SOUDCE (Vyskočí po kliknutí na Vydat) ---
+class SoudcePodpisModal(discord.ui.Modal, title='Oficiální podpis soudce'):
+    jmeno_soudce = discord.ui.TextInput(
+        label='Tvé jméno a příjmení (Postava)', 
+        style=discord.TextStyle.short, 
+        placeholder='Např. JUDr. Antonín Sova', 
+        required=True
+    )
 
-    @discord.ui.button(label="Vydat zatykač", style=discord.ButtonStyle.success, custom_id="zatykac_vydat", emoji="🟢")
-    async def btn_vydat(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Kontrola, jestli má klikač roli soudce
-        if ROLE_SOUDCE_ID not in [role.id for role in interaction.user.roles]:
-            await interaction.response.send_message("❌ Na toto rozhodnutí má právo pouze Soudce!", ephemeral=True)
-            return
+    def __init__(self, puvodni_zprava, puvodni_view):
+        super().__init__()
+        self.puvodni_zprava = puvodni_zprava
+        self.puvodni_view = puvodni_view
 
-        embed = interaction.message.embeds[0]
+    async def on_submit(self, interaction: discord.Interaction):
+        embed = self.puvodni_zprava.embeds[0]
         
-        # Přečtení ID cíle ze skrytého footeru, abychom věděli, kam to poslat
+        # Přečtení ID cíle
         footer_text = embed.footer.text
         hrac_id = footer_text.replace("Číslo průkazu cíle: ", "")
 
-        # 1. Úprava zprávy pro soudce (zežloutne na zelenou, tlačítka zmizí)
+        # 1. Úprava zprávy pro soudce
         embed.color = discord.Color.green()
         embed.title = "📄 ZATYKAČ VYDÁN (Schváleno)"
-        embed.add_field(name="👨‍⚖️ Rozhodnutí soudu", value=f"Schválil a vydal: {interaction.user.mention}", inline=False)
+        
+        # Přidání jména soudce kurzívou na úplný konec textu zatykače
+        embed.description += f"\n\n*Oficiálně schválil a vydal: {self.jmeno_soudce.value}*"
 
-        for child in self.children:
+        # Vypnutí tlačítek
+        for child in self.puvodni_view.children:
             child.disabled = True
-        await interaction.message.edit(embed=embed, view=self)
+        await self.puvodni_zprava.edit(embed=embed, view=self.puvodni_view)
 
         # 2. Odeslání do kanálu "Přehled aktivních zatykačů"
         kanal_aktivni = interaction.client.get_channel(KANAL_AKTIVNI_ZATYKACE_ID)
@@ -63,7 +69,22 @@ class ZatykacView(discord.ui.View):
                 if vlakno:
                     await vlakno.send(embed=embed)
 
-        await interaction.response.send_message("✅ Zatykač byl úspěšně vydán a rozeslán do databází.", ephemeral=True)
+        await interaction.response.send_message("✅ Zatykač byl podepsán, vydán a rozeslán do databází.", ephemeral=True)
+
+# --- TŘÍDA PRO TLAČÍTKA (SOUDCE) ---
+class ZatykacView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Vydat zatykač", style=discord.ButtonStyle.success, custom_id="zatykac_vydat", emoji="🟢")
+    async def btn_vydat(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Kontrola, jestli má klikač roli soudce
+        if ROLE_SOUDCE_ID not in [role.id for role in interaction.user.roles]:
+            await interaction.response.send_message("❌ Na toto rozhodnutí má právo pouze Soudce!", ephemeral=True)
+            return
+
+        # Namísto okamžitého vydání vyvoláme okno pro podpis soudce
+        await interaction.response.send_modal(SoudcePodpisModal(interaction.message, self))
 
     @discord.ui.button(label="Zamítnout", style=discord.ButtonStyle.danger, custom_id="zatykac_zamitnout", emoji="🔴")
     async def btn_zamitnout(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -93,7 +114,7 @@ class ZatykacModal(discord.ui.Modal, title='Žádost o vydání zatykače'):
     
     spis = discord.ui.TextInput(
         label='Znění zatykače (Předloha)', 
-        style=discord.TextStyle.paragraph, # Toto vytvoří to obrovské textové pole (až 4000 znaků)
+        style=discord.TextStyle.paragraph,
         placeholder='Vložte předlohu zatykače a vyplňte ji...', 
         required=True,
         max_length=4000
@@ -108,8 +129,6 @@ class ZatykacModal(discord.ui.Modal, title='Žádost o vydání zatykače'):
 
         embed = discord.Embed(title="⚖️ NOVÁ ŽÁDOST O ZATYKAČ", color=discord.Color.orange())
         embed.description = f"**Žadatel:** {interaction.user.mention}\n\n{self.spis.value}"
-        
-        # Tohle tajně uloží ID hráče, aby ho bot našel, když soudce klikne na "Vydat"
         embed.set_footer(text=f"Číslo průkazu cíle: {self.cislo_prukazu.value}")
 
         kanal_soud = self.bot.get_channel(KANAL_SOUD_ID)
