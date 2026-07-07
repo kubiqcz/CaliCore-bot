@@ -39,9 +39,9 @@ class SoudcePodpisModal(discord.ui.Modal, title='Oficiální podpis soudce'):
     async def on_submit(self, interaction: discord.Interaction):
         embed = self.puvodni_zprava.embeds[0]
         
-        # Přečtení ID cíle
+        # Přečtení ID cíle a odstranění případných mezer
         footer_text = embed.footer.text
-        hrac_id = footer_text.replace("Číslo průkazu cíle: ", "")
+        hrac_id = footer_text.replace("Číslo průkazu cíle: ", "").strip()
 
         # 1. Úprava zprávy pro soudce
         embed.color = discord.Color.green()
@@ -108,7 +108,7 @@ class ZatykacModal(discord.ui.Modal, title='Žádost o vydání zatykače'):
     cislo_prukazu = discord.ui.TextInput(
         label='Číslo průkazu (ID hráče)', 
         style=discord.TextStyle.short, 
-        placeholder='Sem vlož to číslo v uvozovkách ze složky...', 
+        placeholder='Sem vlož čisté číslo průkazu bez mezer...', 
         required=True
     )
     
