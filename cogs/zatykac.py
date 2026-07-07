@@ -15,7 +15,7 @@ ROLE_SOUDCE_ID = 1524106694915788870
 KANAL_ZADOST_ARCHIV_ID = 1524108627353538803 # <--- DOPLŇ ID KANÁLU "žádost-o-zatykač"
 
 # Soudcův stůl (jen tlačítka, zprávy po kliknutí mizí)
-KANAL_SOUD_ID = 1524153952663371990    
+KANAL_SOUD_ID = 1524108627353538803    
 
 # Aktivní zatykače pro policii (po uzavření se mažou)
 KANAL_AKTIVNI_ZATYKACE_ID = 1524108142206652416 
@@ -149,7 +149,7 @@ class ZatykacView(discord.ui.View):
 class ZatykacModal(discord.ui.Modal, title='Příprava Zatykače - Policie'):
     cislo_prukazu = discord.ui.TextInput(label='Číslo průkazu (ID hráče)', style=discord.TextStyle.short, required=True)
     obvineni = discord.ui.TextInput(label='Trestné činy (Obvinění)', style=discord.TextStyle.paragraph, max_length=1000, required=True)
-    adresa = discord.ui.TextInput(label='Poslední známá adresa', style=discord.TextStyle.short, required=True)
+    adresa = discord.ui.TextInput(label='Obvyklá známá adresa', style=discord.TextStyle.short, required=True)
     fyzicky_popis = discord.ui.TextInput(label='Fyzický popis', style=discord.TextStyle.paragraph, required=True)
     dalsi_info = discord.ui.TextInput(label='Další informace', style=discord.TextStyle.paragraph, required=False)
 
@@ -179,7 +179,7 @@ Zatykač č. **FW-{cislo_zatykace}**\n\n**Jméno obžalovaného:** {jmeno_hrace}
 \n---\n♦ **Informace o zatýkaném** ♦\n*Pouze pro účely identifikace*\n
 **Jméno:** {jmeno_hrace}
 **Známý také jako (AKA's):** -
-**Poslední známá adresa:** {self.adresa.value}
+**Obvyklá známá adresa:** {self.adresa.value}
 **Fyzický popis:** {self.fyzicky_popis.value}
 **Vozidla spojená se zatýkaným:** {vozidla_text}
 **Další informace:** {self.dalsi_info.value if self.dalsi_info.value else "Žádné"}"""
