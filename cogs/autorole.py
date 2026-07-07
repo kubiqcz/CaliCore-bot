@@ -1,30 +1,37 @@
 import discord
 from discord.ext import commands
 
-# Sem zadej ID role (nebo rolí), které má bot nováčkům automaticky dát
-AUTOROLE_ID = 1394695578801148020, 1394695578801148018, 1394695578755272875, 1394695578419593232, 1394695578419593229 # Nahraď nulami skutečné ID role
+# Seznam ID rolí, které se mají přidat (v hranatých závorkách)
+AUTOROLE_IDS = [
+    1394695578801148020, 
+    1394695578801148018, 
+    1394695578755272875, 
+    1394695578419593232, 
+    1394695578419593229
+]
 
 class AutoRoleCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # Tento "listener" číhá na pozadí. Spustí se JEN tehdy, když se někdo nový připojí na server.
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        # Najde roli na serveru podle zadaného ID
-        role = member.guild.get_role(AUTOROLE_ID)
+        print(f"🚨 Detekován nový hráč {member.name} na serveru, jdu přidělovat role!")
         
-        if role:
+        # Tento řádek projde seznam a vybere jen ty role, které na serveru reálně existují
+        role_k_pridani = [member.guild.get_role(role_id) for role_id in AUTOROLE_IDS if member.guild.get_role(role_id) is not None]
+        
+        if role_k_pridani:
             try:
-                # Přiřadí roli nováčkovi
-                await member.add_roles(role)
-                print(f"✅ Hráči {member.name} byla automaticky přidělena role {role.name}.")
+                # Ta hvězdička (*) před 'role_k_pridani' rozbalí ten seznam a přidá mu je všechny naráz
+                await member.add_roles(*role_k_pridani)
+                print(f"✅ Hráči {member.name} byly úspěšně přiděleny automatické role.")
             except discord.Forbidden:
-                print(f"❌ Bot nemá oprávnění přidělit roli {role.name}. Zkontroluj, jestli je role bota v nastavení serveru VÝŠ než tato role!")
+                print("❌ Bot nemá oprávnění přidělit některé role. Zkontroluj hierarchii!")
             except Exception as e:
-                print(f"❌ Nastala chyba při přidělování role: {e}")
+                print(f"❌ Nastala chyba při přidělování rolí: {e}")
         else:
-            print("❌ Role nenalezena. Zkontroluj, zda jsi vložil správné AUTOROLE_ID.")
+            print("❌ Žádná z rolí nebyla nalezena. Zkontroluj zadaná ID.")
 
 async def setup(bot):
     await bot.add_cog(AutoRoleCog(bot))
