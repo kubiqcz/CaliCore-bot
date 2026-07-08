@@ -3,7 +3,7 @@ from discord.ext import commands, tasks
 from discord import app_commands
 import pymongo
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # ==========================================
 # NASTAVENÍ OPRÁVNĚNÍ A KANÁLŮ
@@ -54,7 +54,8 @@ class SoudceZatykacModal(discord.ui.Modal, title='Doplnění zatykače soudu'):
         hrac_id = footer_text.split(" | ")[0].replace("Číslo průkazu cíle: ", "").strip()
         archiv_msg_id = int(footer_text.split(" | ")[1].replace("Archiv ID: ", "").strip())
         
-        ted = datetime.now()
+        # OPRAVA ČASU: Bere UTC čas a přičítá 2 hodiny (Náš letní čas)
+        ted = datetime.now(timezone.utc) + timedelta(hours=2)
 
         # Doplnění textu
         novy_text = embed.description.replace("[ČEKÁ NA ROZHODNUTÍ SOUDCE - NOC]", self.vykon_noc.value)
@@ -259,7 +260,8 @@ class ZatykacCog(commands.Cog):
     # --- STOPKY: KONTROLA 48 HODIN ---
     @tasks.loop(hours=1)
     async def kontrola_expirace(self):
-        limit = datetime.now() - timedelta(hours=48)
+        # OPRAVA ČASU: Stopky teď také počítají s českým časem, aby to sedělo!
+        limit = datetime.now(timezone.utc) + timedelta(hours=2) - timedelta(hours=48)
         expirovane_zatykace = kolekce_zatykace.find({"status": "aktivni", "vydano": {"$lt": limit}})
         for z in expirovane_zatykace:
             await self.proved_uzavreni(z, "Vypršela lhůta 48 hodin pro výkon zatykače. Status: Uzavřeno.")
