@@ -7,8 +7,8 @@ from cogs.profil import aktualizuj_mdt_profil
 # ==========================================
 # NASTAVENÍ OPRÁVNĚNÍ MDT PRŮKAZY
 # ==========================================
-MDT_PRUKAZY_ID = 1522513841705975869 # ID KANÁLU PRO PRŮKAZY
-POVOLENE_ROLE_MDT = [1523660335406383164] # ZDE DOPLŇ ID ROLE
+MDT_PRUKAZY_ID = 1522513841705975869 
+POVOLENE_ROLE_MDT = [1523660335406383164] 
 
 MONGO_URI = "mongodb+srv://kubiqcz1:Aluska78@calicore.kmnmj4h.mongodb.net/?appName=CaliCore"
 klient = pymongo.MongoClient(MONGO_URI)
@@ -38,6 +38,7 @@ class PrukazyCog(commands.Cog):
         app_commands.Choice(name="Zbrojní průkaz - Skupina A", value="zp_a"),
         app_commands.Choice(name="Zbrojní průkaz - Skupina B", value="zp_b"),
         app_commands.Choice(name="Zbrojní průkaz - Skupina C", value="zp_c"),
+        app_commands.Choice(name="California Boater Card", value="cbc"),  # <--- PŘIDÁNO ZDE
     ]
 
     def ma_mdt_opravneni(self, interaction: discord.Interaction):
