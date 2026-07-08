@@ -6,8 +6,8 @@ import pymongo
 # ==========================================
 # NASTAVENÍ OPRÁVNĚNÍ A KANÁLŮ
 # ==========================================
-POVOLENE_KANALY_PROFIL = [1394695584383762569, 1394695584383762570, 1394695584383762571, 1394695584383762572, 1394695584383762573, 1394695584383762574] # ZDE DOPLŇ ID KANÁLU
-POVOLENE_ROLE_PROFIL = [1394695578801148019] # Pokud necháš prázdné [], může to použít kdokoli. Pokud sem dáš ID, např. [12345, 67890], omezí se to na tyto role.
+POVOLENE_KANALY_PROFIL = [1394695584383762569, 1394695584383762570, 1394695584383762571, 1394695584383762572, 1394695584383762573, 1394695584383762574]
+POVOLENE_ROLE_PROFIL = [1394695578801148019]
 
 MONGO_URI = "mongodb+srv://kubiqcz1:Aluska78@calicore.kmnmj4h.mongodb.net/?appName=CaliCore"
 klient = pymongo.MongoClient(MONGO_URI)
@@ -21,7 +21,8 @@ PRUKAZY_MAP = {
     "rp_t": "Řidičský průkaz - Skupina T (Traktor)",
     "zp_a": "Zbrojní průkaz - Skupina A",
     "zp_b": "Zbrojní průkaz - Skupina B",
-    "zp_c": "Zbrojní průkaz - Skupina C"
+    "zp_c": "Zbrojní průkaz - Skupina C",
+    "cbc": "California Boater Card"  # <--- PŘIDÁNO ZDE
 }
 
 def nacti_databazi():
@@ -69,14 +70,14 @@ async def aktualizuj_mdt_profil(bot, hrac_id):
     hrac_data = db.get(hrac_id_str, {})
     
     vlakno_id = hrac_data.get("mdt_vlakno_id")
-    zprava_id = hrac_data.get("mdt_zprava_id") # Tohle je to ID zprávy, kde je tabulka profilu ve fóru
+    zprava_id = hrac_data.get("mdt_zprava_id") 
     
     if not vlakno_id or not zprava_id: return 
     try:
         vlakno = await bot.fetch_channel(vlakno_id)
         zprava = await vlakno.fetch_message(zprava_id)
         novy_embed = vytvor_profil_embed(hrac_id_str, None, db)
-        await zprava.edit(embed=novy_embed) # Upraví POUZE tabulku majetku ve fóru (občanka nahoře zůstane)
+        await zprava.edit(embed=novy_embed) 
     except Exception as e:
         print(f"Chyba při updatu profilu na MDT: {e}")
 
@@ -91,14 +92,12 @@ class ProfilCog(commands.Cog):
             await interaction.response.send_message("❌ Zde nemůžeš tento příkaz použít.", ephemeral=True)
             return
 
-        # Pokud nevybral nikoho, ukáže se jeho vlastní profil. Pokud vybral, ukáže se ten pingnutý.
         cilovy_hrac = obcan if obcan else interaction.user
         
         db = nacti_databazi()
         hrac_id = str(cilovy_hrac.id)
         embed = vytvor_profil_embed(hrac_id, cilovy_hrac.mention, db)
         
-        # Tohle vyjede pouze tomu hráči, který ten příkaz napsal (ephemeral=True)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 async def setup(bot):
