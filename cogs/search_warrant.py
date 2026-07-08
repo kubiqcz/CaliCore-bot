@@ -3,7 +3,7 @@ from discord.ext import commands, tasks
 from discord import app_commands
 import pymongo
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # ==========================================
 # NASTAVENÍ OPRÁVNĚNÍ A KANÁLŮ
@@ -46,7 +46,8 @@ class SoudceSWModal(discord.ui.Modal, title='Oficiální schválení příkazu')
         sw_cislo = footer_text.split(" | ")[0].replace("SW Číslo: ", "").strip()
         archiv_msg_id = int(footer_text.split(" | ")[1].replace("Archiv ID: ", "").strip())
         
-        ted = datetime.now()
+        # OPRAVA ČASU: Bere UTC čas a přičítá 2 hodiny (Náš letní čas)
+        ted = datetime.now(timezone.utc) + timedelta(hours=2)
 
         # Dosazení podpisu soudce a data na konec předlohy
         novy_text = embed.description.replace("[ČEKÁ NA ČAS VYDÁNÍ]", ted.strftime("%d.%m.%Y %H:%M"))
@@ -255,7 +256,8 @@ class SearchWarrantCog(commands.Cog):
     # --- AUTO-ZAVŘENÍ PO 48h ---
     @tasks.loop(hours=1)
     async def kontrola_expirace_sw(self):
-        limit = datetime.now() - timedelta(hours=48)
+        # OPRAVA ČASU PRO STOPKY:
+        limit = datetime.now(timezone.utc) + timedelta(hours=2) - timedelta(hours=48)
         expirovane_sw = kolekce_sw.find({"status": "aktivni", "vydano": {"$lt": limit}})
         for sw in expirovane_sw:
             await self.proved_uzavreni_sw(sw, "Vypršela lhůta 48 hodin platnosti příkazu. Status: Uzavřeno.")
