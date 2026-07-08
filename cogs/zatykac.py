@@ -15,7 +15,7 @@ ROLE_SOUDCE_ID = 1524106694915788870
 KANAL_ZADOST_ARCHIV_ID = 1524108627353538803 # <--- DOPLŇ ID KANÁLU "žádost-o-zatykač"
 
 # Soudcův stůl (jen tlačítka, zprávy po kliknutí mizí)
-KANAL_SOUD_ID = 1524108627353538803    
+KANAL_SOUD_ID = 1524153952663371990    
 
 # Aktivní zatykače pro policii (po uzavření se mažou)
 KANAL_AKTIVNI_ZATYKACE_ID = 1524108142206652416 
