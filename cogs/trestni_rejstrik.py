@@ -7,8 +7,9 @@ import zoneinfo
 from cogs.profil import aktualizuj_mdt_profil
 
 # ==========================================
-# NASTAVENÍ OPRÁVNĚNÍ
+# NASTAVENÍ OPRÁVNĚNÍ A KANÁLŮ
 # ==========================================
+KANAL_ZAPSAT_TREST_ID = 1524817641443823878 # <--- DOPLŇ ID KANÁLU (např. kanál s rejstříkem/záznamy)
 ROLE_POLICIE_ID = 1523660335406383164
 
 # ==========================================
@@ -68,7 +69,7 @@ class TrestModal(discord.ui.Modal, title='Zápis do trestního rejstříku'):
             "poznamka": self.poznamka.value if self.poznamka.value else "Žádná"
         }
 
-        # Zápis záznamu PŘÍMO do databáze hráče (používáme $push, aby se vytvořil seznam trestů a staré se nesmazaly)
+        # Zápis záznamu PŘÍMO do databáze hráče
         kolekce_hraci.update_one({"_id": hrac_id_str}, {"$push": {"tresty": zaznam}})
 
         # Aktualizace grafického MDT fóra
@@ -88,6 +89,11 @@ class TrestniRejstrikCog(commands.Cog):
 
     @app_commands.command(name="zapsat_trest", description="Zápis spáchaných zločinů do trestního rejstříku občana.")
     async def zapsat_trest_command(self, interaction: discord.Interaction):
+        # Kontrola kanálu
+        if interaction.channel_id != KANAL_ZAPSAT_TREST_ID:
+            return await interaction.response.send_message(f"❌ Tento příkaz lze použít pouze v <#{KANAL_ZAPSAT_TREST_ID}>.", ephemeral=True)
+            
+        # Kontrola role
         if ROLE_POLICIE_ID not in [role.id for role in interaction.user.roles]:
             return await interaction.response.send_message("❌ Pouze Policie může zapisovat do rejstříku!", ephemeral=True)
         
