@@ -22,7 +22,7 @@ PRUKAZY_MAP = {
     "zp_a": "Zbrojní průkaz - Skupina A",
     "zp_b": "Zbrojní průkaz - Skupina B",
     "zp_c": "Zbrojní průkaz - Skupina C",
-    "cbc": "California Boater Card"  # <--- PŘIDÁNO ZDE
+    "cbc": "California Boater Card"  
 }
 
 def nacti_databazi():
@@ -61,6 +61,19 @@ def vytvor_profil_embed(hrac_id, discord_jmeno=None, db_data=None):
     else:
         vozidla_text = "❌ Žádná registrovaná vozidla"
     embed.add_field(name="🚘 Registr Vozidel", value=vozidla_text, inline=False)
+
+    # === TRESTNÍ REJSTŘÍK (PŘIDÁNO ZDE) ===
+    tresty = hrac_data.get("tresty", [])
+    if tresty:
+        posledni_tresty = tresty[-3:] 
+        tresty_text = ""
+        for t in reversed(posledni_tresty):
+            tresty_text += f"**📅 {t['datum']}** (Zapsal: {t['policista']})\n**Činy:** {t['ciny']}\n**Trest:** {t['trest']}\n\n"
+    else:
+        tresty_text = "✅ Čistý trestní rejstřík"
+    
+    embed.add_field(name="⚖️ Trestní rejstřík (Poslední záznamy)", value=tresty_text[:1024], inline=False)
+    # ======================================
 
     return embed
 
