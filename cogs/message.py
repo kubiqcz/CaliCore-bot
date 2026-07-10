@@ -4,16 +4,8 @@ from discord import app_commands
 
 # --- TŘÍDA PRO FORMULÁŘ ---
 class MessageModal(discord.ui.Modal, title='Odeslání Embed zprávy za bota'):
-    titulek = discord.ui.TextInput(
-        label='Nadpis zprávy (Volitelné)',
-        style=discord.TextStyle.short, 
-        placeholder='Např. 📢 DŮLEŽITÉ OZNÁMENÍ',
-        required=False,
-        max_length=256
-    )
-    
     zprava_text = discord.ui.TextInput(
-        label='Text zprávy',
+        label='Obsah textu',
         style=discord.TextStyle.paragraph, 
         placeholder='Zde napiš nebo vlož text, který má bot odeslat...',
         required=True,
@@ -21,7 +13,7 @@ class MessageModal(discord.ui.Modal, title='Odeslání Embed zprávy za bota'):
     )
 
     barva = discord.ui.TextInput(
-        label='Barva Embedu v HEX (Volitelné)',
+        label='HEX kód barvy (Volitelné)',
         style=discord.TextStyle.short, 
         placeholder='Např. #121212 nebo FF0000',
         required=False,
@@ -40,13 +32,12 @@ class MessageModal(discord.ui.Modal, title='Odeslání Embed zprávy za bota'):
             # Pokud hráč vyplnil nějakou barvu
             vlozena_barva = self.barva.value.strip()
             if vlozena_barva:
-                # Odstraníme mřížku, pokud ji tam uživatel napsal (obě varianty budou fungovat)
+                # Odstraníme mřížku, pokud ji tam uživatel napsal
                 vlozena_barva = vlozena_barva.replace("#", "")
                 try:
-                    # Převedení HEX kódu na barvu, které Discord rozumí (přes základnu 16)
+                    # Převedení HEX kódu na barvu, které Discord rozumí
                     embed_color = discord.Color(int(vlozena_barva, 16))
                 except ValueError:
-                    # Pokud by tam někdo napsal nesmysl (např. slovo "červená"), použije se výchozí
                     pass
 
             # Vytvoření samotného Embedu s vybranou barvou
@@ -54,10 +45,6 @@ class MessageModal(discord.ui.Modal, title='Odeslání Embed zprávy za bota'):
                 description=self.zprava_text.value,
                 color=embed_color
             )
-            
-            # Pokud je vyplněn titulek, přidá se
-            if self.titulek.value.strip():
-                embed.title = self.titulek.value.strip()
 
             # Odeslání
             await self.cilovy_kanal.send(embed=embed)
@@ -75,7 +62,7 @@ class NapisCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="message", description="Přinutí bota napsat Embed zprávu (možnost vlastní barvy a titulku).")
+    @app_commands.command(name="message", description="Přinutí bota napsat Embed zprávu (s volitelným HEX kódem barvy).")
     @app_commands.default_permissions(administrator=True)
     async def message_command(self, interaction: discord.Interaction):
         await interaction.response.send_modal(MessageModal(interaction.channel))
