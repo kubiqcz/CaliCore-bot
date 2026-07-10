@@ -2,33 +2,45 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
+# --- TŘÍDA PRO FORMULÁŘ ---
+class MessageModal(discord.ui.Modal, title='Odeslání zprávy za bota'):
+    zprava_text = discord.ui.TextInput(
+        label='Text zprávy',
+        style=discord.TextStyle.paragraph, # Zvětšené textové pole
+        placeholder='Zde napiš nebo vlož text, který má bot odeslat...',
+        required=True,
+        max_length=2000
+    )
+
+    def __init__(self, cilovy_kanal):
+        super().__init__()
+        # Uložíme si aktuální kanál
+        self.cilovy_kanal = cilovy_kanal
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            # Bot odešle zprávu do uloženého kanálu
+            await self.cilovy_kanal.send(self.zprava_text.value)
+            
+            # Tajné potvrzení pro admina
+            await interaction.response.send_message("✅ Zpráva úspěšně odeslána.", ephemeral=True)
+            
+        except discord.Forbidden:
+            await interaction.response.send_message("❌ Bot nemá práva psát do tohoto kanálu.", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Nastala chyba: {e}", ephemeral=True)
+
+
+# --- HLAVNÍ TŘÍDA ---
 class NapisCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # Změněno name="message"
-    @app_commands.command(name="message", description="Přinutí bota napsat libovolnou zprávu (pouze pro Adminy).")
-    @app_commands.describe(
-        zprava="Text, který má bot odeslat", 
-        kanal="Kanál, kam to má poslat (když nevybereš, pošle se sem)"
-    )
+    @app_commands.command(name="message", description="Přinutí bota napsat zprávu do tohoto kanálu (pouze Admini).")
     @app_commands.default_permissions(administrator=True)
-    async def message_command(self, interaction: discord.Interaction, zprava: str, kanal: discord.TextChannel = None):
-        # Pokud nevybereš kanál, nastaví se ten, ve kterém zrovna píšeš
-        cilovy_kanal = kanal if kanal else interaction.channel
-        
-        try:
-            # Bot odešle zprávu
-            await cilovy_kanal.send(zprava)
-            
-            # Tobě se ukáže tajné potvrzení, že to klaplo (ephemeral)
-            await interaction.response.send_message(f"✅ Zpráva úspěšně odeslána do {cilovy_kanal.mention}", ephemeral=True)
-            
-        except discord.Forbidden:
-            # Kdyby se bot pokusil psát někam, kam nemá přístup
-            await interaction.response.send_message(f"❌ Bot nemá práva psát do kanálu {cilovy_kanal.mention}.", ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"❌ Nastala chyba: {e}", ephemeral=True)
+    async def message_command(self, interaction: discord.Interaction):
+        # Přímo předáme kanál, ve kterém se nacházíme, do modalu
+        await interaction.response.send_modal(MessageModal(interaction.channel))
 
 async def setup(bot):
     await bot.add_cog(NapisCog(bot))
