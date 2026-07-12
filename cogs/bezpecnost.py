@@ -29,7 +29,8 @@ class BezpecnostCog(commands.Cog):
 
     def ziskej_seznam_admin_roli(self, guild):
         """Pomocná funkce, která vyfiltruje a vypíše všechny role s adminem."""
-        admin_role = [role.mention for role in guild.roles if role.permissions.administrator]
+        # OPRAVA: Používáme role.name místo role.mention, aby to v DM nepsalo @neznama-role
+        admin_role = [f"`{role.name}`" for role in guild.roles if role.permissions.administrator]
         seznam = ", ".join(admin_role) if admin_role else "Žádné role nemají právo Administrátor."
         # Discord limit pro jedno políčko v embedu je 1024 znaků, pro jistotu ořízneme
         return seznam[:1024]
@@ -61,7 +62,7 @@ class BezpecnostCog(commands.Cog):
                 description=f"Roli **{after.name}** bylo změněno právo Administrátor: **{stav}**",
                 color=barva
             )
-            embed.add_field(name="Role", value=after.mention, inline=True)
+            embed.add_field(name="Role", value=after.name, inline=True) # Tady taky nepoužíváme ping
             embed.add_field(name="Kdo změnu provedl", value=pachatel, inline=False)
             embed.add_field(name="📋 Aktuální seznam všech Admin rolí na serveru", value=vsechny_admin_role, inline=False)
             
