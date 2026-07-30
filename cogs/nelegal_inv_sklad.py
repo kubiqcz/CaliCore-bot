@@ -112,7 +112,6 @@ class DarkwebCog(commands.Cog):
     async def zalozit_sklad(self, interaction: discord.Interaction, cislo_domu: str, heslo: str):
         if not self.ma_povoleni(interaction):
             return await interaction.response.send_message("❌ Tento příkaz zde nelze použít.", ephemeral=True)
-            await self.aktualizovat_tabulku()
         
         # KONTROLA ROLE BOSS
         ma_roli_boss = any(role.name.lower() == "boss" for role in interaction.user.roles)
@@ -133,6 +132,9 @@ class DarkwebCog(commands.Cog):
         kolekce_sklady.insert_one(novy_sklad)
         
         await interaction.response.send_message(f"🏠 Úkryt v budově **č. {cislo_domu}** byl úspěšně zajištěn. Heslo nastaveno.", ephemeral=True)
+        
+        # AKTUALIZACE TABULKY PO ZALOŽENÍ
+        await self.aktualizovat_tabulku()
 
     # --- 4. PŘÍSTUP DO SKLADU ---
     @app_commands.command(name="nelegal_sklad", description="Nahlédneš do tajného skladu budovy, pokud znáš heslo.")
@@ -221,7 +223,6 @@ class DarkwebCog(commands.Cog):
         embed.description = f"Ve skladu č. **{cislo_domu}** byla úspěšně sestavena zbraň: **{zbran.name}**!"
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-
     # --- 6. POLICEJNÍ RAZIE NA SKLAD (PROVEDENÍ SEARCH WARRANT) ---
     @app_commands.command(name="sw_vykonat", description="[Policie] Provede razii na sklad pomocí aktivního Search Warrantu.")
     @app_commands.describe(
@@ -270,6 +271,62 @@ class DarkwebCog(commands.Cog):
         embed.set_footer(text=f"Akci vedl: {interaction.user.display_name} | SW-2026-{sw_cislo} uzavřen")
 
         await interaction.followup.send(embed=embed)
+        
+        # AKTUALIZACE TABULKY PO VYČIŠTĚNÍ SKLADU POLICIÍ
+        await self.aktualizovat_tabulku()
+
+    # --- 7. AUTOMATICKÁ AKTUALIZACE TABULKY ---
+    async def aktualizovat_tabulku(self):
+        konfig = kolekce_config.find_one({"_id": "tabulka_budov"})
+        if not konfig:
+            return 
+
+        kanal = self.bot.get_channel(konfig["channel_id"])
+        if not kanal:
+            return
+
+        try:
+            zprava = await kanal.fetch_message(konfig["message_id"])
+        except discord.NotFound:
+            return
+
+        sklady = kolekce_sklady.find({}, {"_id": 1})
+        zabrane_seznam = [sklad["_id"] for sklad in sklady]
+        
+        try:
+            zabrane_seznam.sort(key=int)
+        except ValueError:
+            zabrane_seznam.sort()
+
+        embed = discord.Embed(title="🏢 Černý trh: Seznam budov", color=discord.Color.dark_red())
+        
+        if not zabrane_seznam:
+            embed.description = "Všechny budovy ve městě jsou momentálně volné."
+        else:
+            vypis = "\n".join(f"🏠 Budova č. **{cislo}** - 🔴 Zabráno" for cislo in zabrane_seznam)
+            embed.description = f"Seznam aktuálně obsazených budov:\n\n{vypis}"
+        
+        await zprava.edit(embed=embed)
+
+    # --- 8. PŘÍKAZ PRO VYTVOŘENÍ TABULKY (Zadej jen jednou do kanálu) ---
+    @app_commands.command(name="setup_tabulka_budov", description="Vytvoří v tomto kanálu živou tabulku obsazených budov.")
+    async def setup_tabulka_budov(self, interaction: discord.Interaction):
+        if not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("❌ Pouze pro adminy.", ephemeral=True)
+
+        embed = discord.Embed(title="🏢 Černý trh: Seznam budov", description="Načítám data...", color=discord.Color.dark_red())
+        await interaction.response.send_message("Vytvářím tabulku...", ephemeral=True)
+        
+        zprava = await interaction.channel.send(embed=embed)
+
+        kolekce_config.update_one(
+            {"_id": "tabulka_budov"},
+            {"$set": {"channel_id": interaction.channel.id, "message_id": zprava.id}},
+            upsert=True
+        )
+
+        await self.aktualizovat_tabulku()
+
 
 async def setup(bot):
     await bot.add_cog(DarkwebCog(bot))
