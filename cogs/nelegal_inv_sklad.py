@@ -8,8 +8,11 @@ import random
 # ==========================================
 # NASTAVENÍ OPRÁVNĚNÍ A KANÁLŮ
 # ==========================================
-POVOLENY_SERVER_ID = 1532110413028659452  # <--- ZDE DOPLŇ ID TVÉHO SERVERU (GUILD ID)
-POVOLENE_KANALY_ID = [1532455920141996122, 1532455929759399956, 1532455949518901249, 1532455958838513888] # <--- ZDE DOPLŇ ID 4 KANÁLŮ
+# Zde doplň ID všech serverů, kde má bot fungovat, oddělená čárkou
+POVOLENE_SERVERY_ID = [1532110413028659452] 
+
+# Zde doplň ID 4 povolených kanálů, oddělená čárkou
+POVOLENE_KANALY_ID = [1532455920141996122, 1532455929759399956, 1532455949518901249, 1532455958838513888]
 
 # ==========================================
 # DATABÁZE
@@ -18,7 +21,8 @@ MONGO_URI = "mongodb+srv://kubiqcz1:Aluska78@calicore.kmnmj4h.mongodb.net/?appNa
 klient = pymongo.MongoClient(MONGO_URI)
 db_cloud = klient["calicore_databaze"]
 kolekce_hraci = db_cloud["hraci"]
-kolekce_sklady = db_cloud["sklady"] # Nová kolekce pro domovní sklady
+kolekce_sklady = db_cloud["sklady"] 
+db_sw = db_cloud["search_warrants_log"] # Kolekce z tvého policejního systému pro razie
 
 LOKACE_HLEDANI = ["Postal 407", "Postal 802", "Postal 903", "Postal 509", "Postal 302", "Postal 408"]
 SOUCASTKY = ["Hlaveň", "Pažba", "Závěr", "Spoušťový mechanismus"]
@@ -34,20 +38,16 @@ class HledaniView(discord.ui.View):
         if str(interaction.user.id) != self.hrac_id:
             return await interaction.response.send_message("Toto není tvá lokace k prohledání!", ephemeral=True)
 
-        # Deaktivace tlačítka, aby na to neklikal víckrát
         for child in self.children:
             child.disabled = True
         await interaction.message.edit(view=self)
 
         await interaction.response.send_message("Začínáš prohledávat okolí... Bude to trvat 60 sekund. Zůstaň na místě!", ephemeral=True)
         
-        # RP Odpočet 60 sekund
         await asyncio.sleep(60)
 
-        # Náhodný drop součástky
         nalezeno = random.choice(SOUCASTKY)
 
-        # Uložení do nelegal inventáře hráče
         hrac = kolekce_hraci.find_one({"_id": self.hrac_id})
         if not hrac:
             kolekce_hraci.insert_one({"_id": self.hrac_id, "nelegal_inventar": [nalezeno]})
@@ -66,8 +66,7 @@ class DarkwebCog(commands.Cog):
 
     # --- KONTROLNÍ FUNKCE PRO SERVER A KANÁLY ---
     def ma_povoleni(self, interaction: discord.Interaction):
-        # Vrátí True, pokud je příkaz použit na správném serveru a ve správném kanálu
-        if interaction.guild_id != POVOLENY_SERVER_ID:
+        if interaction.guild_id not in POVOLENE_SERVERY_ID:
             return False
         if interaction.channel_id not in POVOLENE_KANALY_ID:
             return False
@@ -107,11 +106,16 @@ class DarkwebCog(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     # --- 3. ZALOŽENÍ SKLADU ---
-    @app_commands.command(name="zalozit_sklad", description="[Admin/Boss] Založí nový utajený sklad na konkrétní číslo budovy.")
+    @app_commands.command(name="zalozit_sklad", description="[Boss] Založí nový utajený sklad na konkrétní číslo budovy.")
     @app_commands.describe(cislo_domu="Číslo budovy (např. 14)", heslo="Heslo pro přístup do skladu")
     async def zalozit_sklad(self, interaction: discord.Interaction, cislo_domu: str, heslo: str):
         if not self.ma_povoleni(interaction):
             return await interaction.response.send_message("❌ Tento příkaz zde nelze použít.", ephemeral=True)
+
+        # KONTROLA ROLE BOSS
+        ma_roli_boss = any(role.name.lower() == "boss" for role in interaction.user.roles)
+        if not ma_roli_boss:
+            return await interaction.response.send_message("❌ Přístup odepřen: Tento příkaz může použít pouze Boss frakce!", ephemeral=True)
 
         existuje = kolekce_sklady.find_one({"_id": cislo_domu.strip()})
         if existuje:
@@ -137,7 +141,6 @@ class DarkwebCog(commands.Cog):
 
         sklad = kolekce_sklady.find_one({"_id": cislo_domu.strip()})
         
-        # Kontrola existence a hesla s tichým odepřením přístupu
         if not sklad or sklad.get("heslo") != heslo:
             return await interaction.response.send_message("❌ Přístup odepřen.", ephemeral=True)
 
@@ -161,6 +164,110 @@ class DarkwebCog(commands.Cog):
             embed.add_field(name="🔫 Hotové zbraně", value=vypis_z, inline=False)
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    # --- 5. VÝROBA ZBRANÍ ZE SKLADU ---
+    @app_commands.command(name="vyrobit_zbran", description="Složí nelegální zbraň ze součástek uložených ve skladu.")
+    @app_commands.describe(
+        zbran="Vyber zbraň k výrobě", 
+        cislo_domu="Číslo budovy skladu", 
+        heslo="Přístupové heslo do skladu"
+    )
+    @app_commands.choices(zbran=[
+        app_commands.Choice(name="AK-47", value="AK-47"),
+        app_commands.Choice(name="Remington MSR", value="Remington MSR"),
+        app_commands.Choice(name="TEC-9", value="TEC-9"),
+        app_commands.Choice(name="Desert Eagle", value="Desert Eagle"),
+        app_commands.Choice(name="Kriss Vector", value="kriss vector"),
+        app_commands.Choice(name="Skorpion", value="skorpion")
+    ])
+    async def vyrobit_zbran(self, interaction: discord.Interaction, zbran: app_commands.Choice[str], cislo_domu: str, heslo: str):
+        if not self.ma_povoleni(interaction):
+            return await interaction.response.send_message("❌ Tento příkaz zde nelze použít.", ephemeral=True)
+
+        sklad = kolekce_sklady.find_one({"_id": cislo_domu.strip()})
+        if not sklad or sklad.get("heslo") != heslo:
+            return await interaction.response.send_message("❌ Přístup odepřen.", ephemeral=True)
+
+        soucastky = sklad.get("soucastky", [])
+        
+        potrebne_dily = ["Hlaveň", "Pažba", "Závěr", "Spoušťový mechanismus"]
+        
+        chceni_chybi = []
+        temp_soucastky = list(soucastky)
+        for dil in potrebne_dily:
+            if dil in temp_soucastky:
+                temp_soucastky.remove(dil)
+            else:
+                chceni_chybi.append(dil)
+
+        if chceni_chybi:
+            zchybi_str = ", ".join(chceni_chybi)
+            return await interaction.response.send_message(f"❌ Ve skladu chybí tyto součástky pro výrobu: **{zchybi_str}**.", ephemeral=True)
+
+        for dil in potrebne_dily:
+            soucastky.remove(dil)
+
+        hotove_zbrane = sklad.get("hotove_zbrane", [])
+        hotove_zbrane.append(zbran.value)
+
+        kolekce_sklady.update_one(
+            {"_id": cislo_domu.strip()},
+            {"$set": {"soucastky": soucastky, "hotove_zbrane": hotove_zbrane}}
+        )
+
+        embed = discord.Embed(title="🛠️ Výroba úspěšná", color=discord.Color.green())
+        embed.description = f"Ve skladu č. **{cislo_domu}** byla úspěšně sestavena zbraň: **{zbran.name}**!"
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+    # --- 6. POLICEJNÍ RAZIE NA SKLAD (PROVEDENÍ SEARCH WARRANT) ---
+    @app_commands.command(name="sw_vykonat", description="[Policie] Provede razii na sklad pomocí aktivního Search Warrantu.")
+    @app_commands.describe(
+        sw_cislo="Číslo SW příkazu (např. 12345)", 
+        cislo_domu="Číslo budovy, kde proběhne razie"
+    )
+    async def sw_vykonat(self, interaction: discord.Interaction, sw_cislo: str, cislo_domu: str):
+        if not self.ma_povoleni(interaction):
+            return await interaction.response.send_message("❌ Tento příkaz zde nelze použít.", ephemeral=True)
+
+        sw = db_sw.find_one({"sw_cislo": sw_cislo.strip(), "status": "aktivni"})
+        
+        if not sw:
+            return await interaction.response.send_message(f"❌ Příkaz SW-2026-{sw_cislo} neexistuje nebo již není aktivní.", ephemeral=True)
+
+        sklad = kolekce_sklady.find_one({"_id": cislo_domu.strip()})
+        if not sklad:
+            return await interaction.response.send_message(f"❌ Budova č. {cislo_domu} neobsahuje žádný registrovaný tajný sklad.", ephemeral=True)
+
+        await interaction.response.send_message(
+            f"🚨 **POLICEJNÍ RAZIE ZAHÁJENA!**\n"
+            f"Jednotky vyrazily dveře budovy č. **{cislo_domu}** na základě příkazu `SW-2026-{sw_cislo}`.\n"
+            f"⏳ *Prohledávání objektu a zajišťování důkazů potrvá 120 sekund...*",
+            ephemeral=False
+        )
+
+        await asyncio.sleep(120)
+
+        soucastky = sklad.get("soucastky", [])
+        zbrane = sklad.get("hotove_zbrane", [])
+
+        kolekce_sklady.update_one(
+            {"_id": cislo_domu.strip()},
+            {"$set": {"soucastky": [], "hotove_zbrane": [], "drogy": []}}
+        )
+
+        db_sw.update_one({"_id": sw["_id"]}, {"$set": {"status": "uzavren"}})
+
+        embed = discord.Embed(title=f"🛑 RAZIE UKONČENA — Budova č. {cislo_domu}", color=discord.Color.red())
+        
+        vypis_s = "\n".join([f"• {item} (x{soucastky.count(item)})" for item in set(soucastky)]) if soucastky else "Žádné součástky"
+        vypis_z = "\n".join([f"• {item} (x{zbrane.count(item)})" for item in set(zbrane)]) if zbrane else "Žádné zbraně"
+
+        embed.add_field(name="⚙️ Zabavené součástky", value=vypis_s, inline=False)
+        embed.add_field(name="🔫 Zabavené hotové zbraně", value=vypis_z, inline=False)
+        embed.set_footer(text=f"Akci vedl: {interaction.user.display_name} | SW-2026-{sw_cislo} uzavřen")
+
+        await interaction.followup.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(DarkwebCog(bot))
