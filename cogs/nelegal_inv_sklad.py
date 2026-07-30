@@ -6,6 +6,12 @@ import asyncio
 import random
 
 # ==========================================
+# NASTAVENÍ OPRÁVNĚNÍ A KANÁLŮ
+# ==========================================
+POVOLENY_SERVER_ID = 1532110413028659452  # <--- ZDE DOPLŇ ID TVÉHO SERVERU (GUILD ID)
+POVOLENE_KANALY_ID = [1532455920141996122, 1532455929759399956, 1532455949518901249, 1532455958838513888] # <--- ZDE DOPLŇ ID 4 KANÁLŮ
+
+# ==========================================
 # DATABÁZE
 # ==========================================
 MONGO_URI = "mongodb+srv://kubiqcz1:Aluska78@calicore.kmnmj4h.mongodb.net/?appName=CaliCore"
@@ -44,7 +50,6 @@ class HledaniView(discord.ui.View):
         # Uložení do nelegal inventáře hráče
         hrac = kolekce_hraci.find_one({"_id": self.hrac_id})
         if not hrac:
-            # Pokud hráč nemá vůbec profil v DB, vytvoříme základ
             kolekce_hraci.insert_one({"_id": self.hrac_id, "nelegal_inventar": [nalezeno]})
         else:
             kolekce_hraci.update_one({"_id": self.hrac_id}, {"$push": {"nelegal_inventar": nalezeno}})
@@ -59,9 +64,21 @@ class DarkwebCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    # --- KONTROLNÍ FUNKCE PRO SERVER A KANÁLY ---
+    def ma_povoleni(self, interaction: discord.Interaction):
+        # Vrátí True, pokud je příkaz použit na správném serveru a ve správném kanálu
+        if interaction.guild_id != POVOLENY_SERVER_ID:
+            return False
+        if interaction.channel_id not in POVOLENE_KANALY_ID:
+            return False
+        return True
+
     # --- 1. HLEDÁNÍ SOUČÁSTEK ---
     @app_commands.command(name="hledat_parts", description="Získáš tip na lokaci, kde by se mohly nacházet součástky zbraní.")
     async def hledat_parts(self, interaction: discord.Interaction):
+        if not self.ma_povoleni(interaction):
+            return await interaction.response.send_message("❌ Tento příkaz zde nelze použít.", ephemeral=True)
+
         lokace = random.choice(LOKACE_HLEDANI)
         
         embed = discord.Embed(title="📱 Zašifrovaná zpráva", color=discord.Color.dark_theme())
@@ -72,6 +89,9 @@ class DarkwebCog(commands.Cog):
     # --- 2. OSOBNÍ NELEGÁLNÍ INVENTÁŘ ---
     @app_commands.command(name="nelegal_inventar", description="Zobrazí tvůj skrytý nelegální inventář.")
     async def nelegal_inventar(self, interaction: discord.Interaction):
+        if not self.ma_povoleni(interaction):
+            return await interaction.response.send_message("❌ Tento příkaz zde nelze použít.", ephemeral=True)
+
         hrac = kolekce_hraci.find_one({"_id": str(interaction.user.id)})
         inventar = hrac.get("nelegal_inventar", []) if hrac else []
 
@@ -80,7 +100,6 @@ class DarkwebCog(commands.Cog):
         if not inventar:
             embed.description = "U sebe momentálně nemáš nic nelegálního."
         else:
-            # Spočítání stejných předmětů pro hezčí výpis
             pocty = {item: inventar.count(item) for item in set(inventar)}
             vypis = "\n".join([f"• {item} (x{pocet})" for item, pocet in pocty.items()])
             embed.description = vypis
@@ -91,8 +110,9 @@ class DarkwebCog(commands.Cog):
     @app_commands.command(name="zalozit_sklad", description="[Admin/Boss] Založí nový utajený sklad na konkrétní číslo budovy.")
     @app_commands.describe(cislo_domu="Číslo budovy (např. 14)", heslo="Heslo pro přístup do skladu")
     async def zalozit_sklad(self, interaction: discord.Interaction, cislo_domu: str, heslo: str):
-        # Můžeš sem přidat kontrolu role Admina nebo Bosse
-        
+        if not self.ma_povoleni(interaction):
+            return await interaction.response.send_message("❌ Tento příkaz zde nelze použít.", ephemeral=True)
+
         existuje = kolekce_sklady.find_one({"_id": cislo_domu.strip()})
         if existuje:
             return await interaction.response.send_message(f"Sklad v budově č. {cislo_domu} už existuje!", ephemeral=True)
@@ -112,6 +132,9 @@ class DarkwebCog(commands.Cog):
     @app_commands.command(name="nelegal_sklad", description="Nahlédneš do tajného skladu budovy, pokud znáš heslo.")
     @app_commands.describe(cislo_domu="Číslo budovy", heslo="Zadej přístupové heslo")
     async def otevrit_sklad(self, interaction: discord.Interaction, cislo_domu: str, heslo: str):
+        if not self.ma_povoleni(interaction):
+            return await interaction.response.send_message("❌ Tento příkaz zde nelze použít.", ephemeral=True)
+
         sklad = kolekce_sklady.find_one({"_id": cislo_domu.strip()})
         
         # Kontrola existence a hesla s tichým odepřením přístupu
@@ -123,7 +146,6 @@ class DarkwebCog(commands.Cog):
 
         embed = discord.Embed(title=f"📦 Tajný sklad (Budova č. {cislo_domu})", color=discord.Color.dark_grey())
         
-        # Výpis součástek
         if not soucastky:
             embed.add_field(name="⚙️ Součástky zbraní", value="Žádné součástky", inline=False)
         else:
@@ -131,7 +153,6 @@ class DarkwebCog(commands.Cog):
             vypis_s = "\n".join([f"• {item} (x{pocet})" for item, pocet in pocty_s.items()])
             embed.add_field(name="⚙️ Součástky zbraní", value=vypis_s, inline=False)
 
-        # Výpis zbraní
         if not zbrane:
             embed.add_field(name="🔫 Hotové zbraně", value="Žádné zbraně", inline=False)
         else:
