@@ -23,6 +23,7 @@ db_cloud = klient["calicore_databaze"]
 kolekce_hraci = db_cloud["hraci"]
 kolekce_sklady = db_cloud["sklady"] 
 db_sw = db_cloud["search_warrants_log"] # Kolekce z tvého policejního systému pro razie
+kolekce_config = db_cloud["config"]
 
 LOKACE_HLEDANI = ["Postal 407", "Postal 802", "Postal 903", "Postal 509", "Postal 302", "Postal 408"]
 SOUCASTKY = ["Hlaveň", "Pažba", "Závěr", "Spoušťový mechanismus"]
@@ -111,7 +112,8 @@ class DarkwebCog(commands.Cog):
     async def zalozit_sklad(self, interaction: discord.Interaction, cislo_domu: str, heslo: str):
         if not self.ma_povoleni(interaction):
             return await interaction.response.send_message("❌ Tento příkaz zde nelze použít.", ephemeral=True)
-
+            await self.aktualizovat_tabulku()
+        
         # KONTROLA ROLE BOSS
         ma_roli_boss = any(role.name.lower() == "boss" for role in interaction.user.roles)
         if not ma_roli_boss:
