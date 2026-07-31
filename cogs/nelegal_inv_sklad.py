@@ -342,3 +342,62 @@ class NelegalSkladCog(commands.Cog):
 async def setup(bot):
     # Zde je změněn název třídy, aby se to nekřížilo s tvojí anonymní DarkwebCog
     await bot.add_cog(NelegalSkladCog(bot))
+
+
+# --- 9. PŘIDÁNÍ ITEMU ADMINEM ---
+    @app_commands.command(name="admin_pridat_item", description="[Admin] Přidá hráči nelegální předmět do kapes.")
+    @app_commands.describe(hrac="Hráč, kterému chceš item dát", item="Přesný název předmětu (např. Hlaveň)", pocet="Počet kusů (výchozí: 1)")
+    async def admin_pridat_item(self, interaction: discord.Interaction, hrac: discord.Member, item: str, pocet: int = 1):
+        if not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("❌ Tento příkaz mohou použít jen administrátoři.", ephemeral=True)
+
+        if pocet < 1:
+            return await interaction.response.send_message("❌ Počet musí být alespoň 1.", ephemeral=True)
+
+        hrac_id = str(hrac.id)
+        # Vytvoříme seznam předmětů podle zadaného počtu (např. 3x Hlaveň -> ["Hlaveň", "Hlaveň", "Hlaveň"])
+        pridavane_itemy = [item] * pocet
+
+        # $push s $each přidá všechny položky ze seznamu najednou
+        kolekce_hraci.update_one(
+            {"_id": hrac_id},
+            {"$push": {"nelegal_inventar": {"$each": pridavane_itemy}}},
+            upsert=True
+        )
+
+        await interaction.response.send_message(f"✅ Úspěšně přidáno **{pocet}x {item}** do inventáře hráče {hrac.display_name}.", ephemeral=True)
+
+    # --- 10. ODEBRÁNÍ ITEMU ADMINEM ---
+    @app_commands.command(name="admin_odebrat_item", description="[Admin] Odebere hráči nelegální předmět z kapes.")
+    @app_commands.describe(hrac="Hráč, kterému chceš item sebrat", item="Přesný název předmětu", pocet="Počet kusů (výchozí: 1)")
+    async def admin_odebrat_item(self, interaction: discord.Interaction, hrac: discord.Member, item: str, pocet: int = 1):
+        if not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("❌ Tento příkaz mohou použít jen administrátoři.", ephemeral=True)
+
+        if pocet < 1:
+            return await interaction.response.send_message("❌ Počet musí být alespoň 1.", ephemeral=True)
+
+        hrac_id = str(hrac.id)
+        hrac_data = kolekce_hraci.find_one({"_id": hrac_id})
+
+        if not hrac_data or "nelegal_inventar" not in hrac_data:
+            return await interaction.response.send_message(f"❌ Hráč {hrac.display_name} nemá u sebe žádné nelegální věci.", ephemeral=True)
+
+        inventar = hrac_data.get("nelegal_inventar", [])
+        skutecny_pocet = inventar.count(item)
+
+        if skutecny_pocet == 0:
+            return await interaction.response.send_message(f"❌ Hráč u sebe nemá žádný předmět s přesným názvem **{item}**.", ephemeral=True)
+
+        # Odebereme přesně tolik kusů, kolik admin zadal (nebo maximum, co hráč má, pokud admin zadal víc)
+        odebrano = 0
+        for _ in range(min(pocet, skutecny_pocet)):
+            inventar.remove(item)
+            odebrano += 1
+
+        kolekce_hraci.update_one(
+            {"_id": hrac_id},
+            {"$set": {"nelegal_inventar": inventar}}
+        )
+
+        await interaction.response.send_message(f"✅ Úspěšně odebráno **{odebrano}x {item}** z inventáře hráče {hrac.display_name}.", ephemeral=True)
