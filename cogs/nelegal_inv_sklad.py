@@ -340,8 +340,20 @@ class NelegalSkladCog(commands.Cog):
 
     # --- 9. PŘIDÁNÍ ITEMU ADMINEM ---
     @app_commands.command(name="admin_pridat_item", description="[Admin] Přidá hráči nelegální předmět do kapes.")
-    @app_commands.describe(hrac="Hráč, kterému chceš item dát", item="Přesný název předmětu (např. Hlaveň)", pocet="Počet kusů (výchozí: 1)")
-    async def admin_pridat_item(self, interaction: discord.Interaction, hrac: discord.Member, item: str, pocet: int = 1):
+    @app_commands.describe(hrac="Hráč, kterému chceš item dát", item="Vyber předmět ze seznamu", pocet="Počet kusů (výchozí: 1)")
+    @app_commands.choices(item=[
+        app_commands.Choice(name="Hlaveň", value="Hlaveň"),
+        app_commands.Choice(name="Pažba", value="Pažba"),
+        app_commands.Choice(name="Závěr", value="Závěr"),
+        app_commands.Choice(name="Spoušťový mechanismus", value="Spoušťový mechanismus"),
+        app_commands.Choice(name="AK-47", value="AK-47"),
+        app_commands.Choice(name="Remington MSR", value="Remington MSR"),
+        app_commands.Choice(name="TEC-9", value="TEC-9"),
+        app_commands.Choice(name="Desert Eagle", value="Desert Eagle"),
+        app_commands.Choice(name="Kriss Vector", value="kriss vector"),
+        app_commands.Choice(name="Skorpion", value="skorpion")
+    ])
+    async def admin_pridat_item(self, interaction: discord.Interaction, hrac: discord.Member, item: app_commands.Choice[str], pocet: int = 1):
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message("❌ Tento příkaz mohou použít jen administrátoři.", ephemeral=True)
 
@@ -349,22 +361,33 @@ class NelegalSkladCog(commands.Cog):
             return await interaction.response.send_message("❌ Počet musí být alespoň 1.", ephemeral=True)
 
         hrac_id = str(hrac.id)
-        # Vytvoříme seznam předmětů podle zadaného počtu (např. 3x Hlaveň -> ["Hlaveň", "Hlaveň", "Hlaveň"])
-        pridavane_itemy = [item] * pocet
+        # item.value je přesná textová hodnota z předvolby výše
+        pridavane_itemy = [item.value] * pocet
 
-        # $push s $each přidá všechny položky ze seznamu najednou
         kolekce_hraci.update_one(
             {"_id": hrac_id},
             {"$push": {"nelegal_inventar": {"$each": pridavane_itemy}}},
             upsert=True
         )
 
-        await interaction.response.send_message(f"✅ Úspěšně přidáno **{pocet}x {item}** do inventáře hráče {hrac.display_name}.", ephemeral=True)
+        await interaction.response.send_message(f"✅ Úspěšně přidáno **{pocet}x {item.name}** do inventáře hráče {hrac.display_name}.", ephemeral=True)
 
     # --- 10. ODEBRÁNÍ ITEMU ADMINEM ---
     @app_commands.command(name="admin_odebrat_item", description="[Admin] Odebere hráči nelegální předmět z kapes.")
-    @app_commands.describe(hrac="Hráč, kterému chceš item sebrat", item="Přesný název předmětu", pocet="Počet kusů (výchozí: 1)")
-    async def admin_odebrat_item(self, interaction: discord.Interaction, hrac: discord.Member, item: str, pocet: int = 1):
+    @app_commands.describe(hrac="Hráč, kterému chceš item sebrat", item="Vyber předmět ze seznamu", pocet="Počet kusů (výchozí: 1)")
+    @app_commands.choices(item=[
+        app_commands.Choice(name="Hlaveň", value="Hlaveň"),
+        app_commands.Choice(name="Pažba", value="Pažba"),
+        app_commands.Choice(name="Závěr", value="Závěr"),
+        app_commands.Choice(name="Spoušťový mechanismus", value="Spoušťový mechanismus"),
+        app_commands.Choice(name="AK-47", value="AK-47"),
+        app_commands.Choice(name="Remington MSR", value="Remington MSR"),
+        app_commands.Choice(name="TEC-9", value="TEC-9"),
+        app_commands.Choice(name="Desert Eagle", value="Desert Eagle"),
+        app_commands.Choice(name="Kriss Vector", value="kriss vector"),
+        app_commands.Choice(name="Skorpion", value="skorpion")
+    ])
+    async def admin_odebrat_item(self, interaction: discord.Interaction, hrac: discord.Member, item: app_commands.Choice[str], pocet: int = 1):
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message("❌ Tento příkaz mohou použít jen administrátoři.", ephemeral=True)
 
@@ -378,15 +401,14 @@ class NelegalSkladCog(commands.Cog):
             return await interaction.response.send_message(f"❌ Hráč {hrac.display_name} nemá u sebe žádné nelegální věci.", ephemeral=True)
 
         inventar = hrac_data.get("nelegal_inventar", [])
-        skutecny_pocet = inventar.count(item)
+        skutecny_pocet = inventar.count(item.value)
 
         if skutecny_pocet == 0:
-            return await interaction.response.send_message(f"❌ Hráč u sebe nemá žádný předmět s přesným názvem **{item}**.", ephemeral=True)
+            return await interaction.response.send_message(f"❌ Hráč u sebe nemá žádný předmět s názvem **{item.name}**.", ephemeral=True)
 
-        # Odebereme přesně tolik kusů, kolik admin zadal (nebo maximum, co hráč má, pokud admin zadal víc)
         odebrano = 0
         for _ in range(min(pocet, skutecny_pocet)):
-            inventar.remove(item)
+            inventar.remove(item.value)
             odebrano += 1
 
         kolekce_hraci.update_one(
@@ -394,11 +416,4 @@ class NelegalSkladCog(commands.Cog):
             {"$set": {"nelegal_inventar": inventar}}
         )
 
-        await interaction.response.send_message(f"✅ Úspěšně odebráno **{odebrano}x {item}** z inventáře hráče {hrac.display_name}.", ephemeral=True)
-
-
-# ==========================================
-# NAHRÁNÍ COGU BOTA
-# ==========================================
-async def setup(bot):
-    await bot.add_cog(NelegalSkladCog(bot))
+        await interaction.response.send_message(f"✅ Úspěšně odebráno **{odebrano}x {item.name}** z inventáře hráče {hrac.display_name}.", ephemeral=True)
