@@ -8,11 +8,21 @@ import random
 # ==========================================
 # NASTAVENÍ OPRÁVNĚNÍ A KANÁLŮ
 # ==========================================
-# Zde doplň ID všech serverů, kde má bot fungovat, oddělená čárkou
-POVOLENE_SERVERY_ID = [1532110413028659452] 
+# DOPLŇ ID MDT SERVERU A KANÁLU MÍSTO NUL:
+ID_MDT_SERVERU = 1453744303691137045  # <--- ZDE DOPLŇ ID VAŠEHO MDT SERVERU
+ID_MDT_KANALU = 1532746320543088853 # <--- ZDE DOPLŇ ID KANÁLU NA MDT SERVERU (např. #sw-zaznamy)
 
-# Zde doplň ID 4 povolených kanálů, oddělená čárkou
-POVOLENE_KANALY_ID = [1532455920141996122, 1532455929759399956, 1532455949518901249, 1532455958838513888]
+# Seznam všech povolených serverů (Hlavní město + MDT)
+POVOLENE_SERVERY_ID = [1532110413028659452, ID_MDT_SERVERU] 
+
+# Seznam všech povolených kanálů (Hlavní město + MDT kanál)
+POVOLENE_KANALY_ID = [
+    1532455920141996122, 
+    1532455929759399956, 
+    1532455949518901249, 
+    1532455958838513888, 
+    ID_MDT_KANALU
+]
 
 # ==========================================
 # DATABÁZE
@@ -22,8 +32,8 @@ klient = pymongo.MongoClient(MONGO_URI)
 db_cloud = klient["calicore_databaze"]
 kolekce_hraci = db_cloud["hraci"]
 kolekce_sklady = db_cloud["sklady"] 
-db_sw = db_cloud["search_warrants_log"] # Kolekce z tvého policejního systému pro razie
-kolekce_config = db_cloud["config"]
+db_sw = db_cloud["search_warrants_log"] # Kolekce pro razie
+kolekce_config = db_cloud["config"]     # Kolekce pro živou tabulku
 
 LOKACE_HLEDANI = ["Postal 407", "Postal 802", "Postal 903", "Postal 509", "Postal 302", "Postal 408"]
 SOUCASTKY = ["Hlaveň", "Pažba", "Závěr", "Spoušťový mechanismus"]
@@ -31,7 +41,7 @@ SOUCASTKY = ["Hlaveň", "Pažba", "Závěr", "Spoušťový mechanismus"]
 # --- TŘÍDA PRO TLAČÍTKO HLEDÁNÍ ---
 class HledaniView(discord.ui.View):
     def __init__(self, hrac_id):
-        super().__init__(timeout=600) # Má 10 minut na to dojet na místo
+        super().__init__(timeout=600)
         self.hrac_id = hrac_id
 
     @discord.ui.button(label="📍 Jsem na místě", style=discord.ButtonStyle.success)
@@ -61,12 +71,13 @@ class HledaniView(discord.ui.View):
         await interaction.followup.send(embed=embed, ephemeral=True)
 
 
-class DarkwebCog(commands.Cog):
+class NelegalSkladCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     # --- KONTROLNÍ FUNKCE PRO SERVER A KANÁLY ---
     def ma_povoleni(self, interaction: discord.Interaction):
+        # Aby nedocházelo k chybám, pokud MDT server/kanál ještě není nastaven (je tam 0)
         if interaction.guild_id not in POVOLENE_SERVERY_ID:
             return False
         if interaction.channel_id not in POVOLENE_KANALY_ID:
@@ -329,4 +340,5 @@ class DarkwebCog(commands.Cog):
 
 
 async def setup(bot):
-    await bot.add_cog(DarkwebCog(bot))
+    # Zde je změněn název třídy, aby se to nekřížilo s tvojí anonymní DarkwebCog
+    await bot.add_cog(NelegalSkladCog(bot))
