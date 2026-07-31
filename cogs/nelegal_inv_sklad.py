@@ -309,7 +309,7 @@ class NelegalSkladCog(commands.Cog):
         except ValueError:
             zabrane_seznam.sort()
 
-        embed = discord.Embed(title="🏢 Černý trh: Seznam budov", color=discord.Color.dark_red())
+        embed = discord.Embed(title="🏢 Zabrané budovy", color=discord.Color.dark_red())
         
         if not zabrane_seznam:
             embed.description = "Všechny budovy ve městě jsou momentálně volné."
