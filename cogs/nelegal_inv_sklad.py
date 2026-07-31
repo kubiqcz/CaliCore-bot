@@ -338,13 +338,7 @@ class NelegalSkladCog(commands.Cog):
 
         await self.aktualizovat_tabulku()
 
-
-async def setup(bot):
-    # Zde je změněn název třídy, aby se to nekřížilo s tvojí anonymní DarkwebCog
-    await bot.add_cog(NelegalSkladCog(bot))
-
-
-# --- 9. PŘIDÁNÍ ITEMU ADMINEM ---
+    # --- 9. PŘIDÁNÍ ITEMU ADMINEM ---
     @app_commands.command(name="admin_pridat_item", description="[Admin] Přidá hráči nelegální předmět do kapes.")
     @app_commands.describe(hrac="Hráč, kterému chceš item dát", item="Přesný název předmětu (např. Hlaveň)", pocet="Počet kusů (výchozí: 1)")
     async def admin_pridat_item(self, interaction: discord.Interaction, hrac: discord.Member, item: str, pocet: int = 1):
@@ -401,3 +395,10 @@ async def setup(bot):
         )
 
         await interaction.response.send_message(f"✅ Úspěšně odebráno **{odebrano}x {item}** z inventáře hráče {hrac.display_name}.", ephemeral=True)
+
+
+# ==========================================
+# NAHRÁNÍ COGU BOTA
+# ==========================================
+async def setup(bot):
+    await bot.add_cog(NelegalSkladCog(bot))
