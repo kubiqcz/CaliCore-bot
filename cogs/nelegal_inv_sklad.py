@@ -417,3 +417,12 @@ class NelegalSkladCog(commands.Cog):
         )
 
         await interaction.response.send_message(f"✅ Úspěšně odebráno **{odebrano}x {item.name}** z inventáře hráče {hrac.display_name}.", ephemeral=True)
+
+
+# ==========================================
+# NAHRÁNÍ COGU BOTA
+# ==========================================
+async def setup(bot):
+    # Zde je změněn název třídy, aby se to nekřížilo s tvojí anonymní DarkwebCog
+    await bot.add_cog(NelegalSkladCog(bot))
+
