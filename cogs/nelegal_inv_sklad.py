@@ -325,7 +325,7 @@ class NelegalSkladCog(commands.Cog):
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message("❌ Pouze pro adminy.", ephemeral=True)
 
-        embed = discord.Embed(title="🏢 Seznam Zabraných Budov", description="Načítám data...", color=discord.Color.dark_red())
+        embed = discord.Embed(title="🏢 Zabrané budovy", description="Načítám data...", color=discord.Color.dark_red())
         await interaction.response.send_message("Vytvářím tabulku...", ephemeral=True)
         
         zprava = await interaction.channel.send(embed=embed)
