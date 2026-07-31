@@ -180,11 +180,59 @@ class NelegalSkladCog(commands.Cog):
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    # --- 5. VÝROBA ZBRANÍ ZE SKLADU ---
-    @app_commands.command(name="vyrobit_zbran", description="Složí nelegální zbraň ze součástek uložených ve skladu.")
+    # --- 5A. VÝROBA ZBRANÍ Z INVENTÁŘE (KAPSY) ---
+    @app_commands.command(name="vyrobit_zbran", description="Složí nelegální zbraň ze součástek, které máš u sebe v kapsách.")
+    @app_commands.describe(zbran="Vyber zbraň k výrobě")
+    @app_commands.choices(zbran=[
+        app_commands.Choice(name="AK-47", value="AK-47"),
+        app_commands.Choice(name="Remington MSR", value="Remington MSR"),
+        app_commands.Choice(name="TEC-9", value="TEC-9"),
+        app_commands.Choice(name="Desert Eagle", value="Desert Eagle"),
+        app_commands.Choice(name="Kriss Vector", value="kriss vector"),
+        app_commands.Choice(name="Skorpion", value="skorpion")
+    ])
+    async def vyrobit_zbran(self, interaction: discord.Interaction, zbran: app_commands.Choice[str]):
+        if not self.ma_povoleni(interaction):
+            return await interaction.response.send_message("❌ Tento příkaz zde nelze použít.", ephemeral=True)
+
+        hrac_id = str(interaction.user.id)
+        hrac = kolekce_hraci.find_one({"_id": hrac_id})
+        inventar = hrac.get("nelegal_inventar", []) if hrac else []
+
+        potrebne_dily = ["Hlaveň", "Pažba", "Závěr", "Spoušťový mechanismus"]
+        chceni_chybi = []
+        temp_inventar = list(inventar)
+
+        for dil in potrebne_dily:
+            if dil in temp_inventar:
+                temp_inventar.remove(dil)
+            else:
+                chceni_chybi.append(dil)
+
+        if chceni_chybi:
+            zchybi_str = ", ".join(chceni_chybi)
+            return await interaction.response.send_message(f"❌ U sebe v kapsách ti chybí tyto součástky pro výrobu: **{zchybi_str}**.", ephemeral=True)
+
+        for dil in potrebne_dily:
+            inventar.remove(dil)
+
+        inventar.append(zbran.value)
+
+        kolekce_hraci.update_one(
+            {"_id": hrac_id},
+            {"$set": {"nelegal_inventar": inventar}},
+            upsert=True
+        )
+
+        embed = discord.Embed(title="🛠️ Výroba úspěšná (Z kapes)", color=discord.Color.green())
+        embed.description = f"Úspěšně jsi sestavil zbraň: **{zbran.name}**! Byla přidána do tvého osobního inventáře."
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    # --- 5B. VÝROBA ZBRANÍ ZE SKLADU ---
+    @app_commands.command(name="vyrobit_zbran_sklad", description="Složí nelegální zbraň ze součástek uložených v konkrétním skladu.")
     @app_commands.describe(
         zbran="Vyber zbraň k výrobě", 
-        cislo_domu="Číslo budovy skladu", 
+        cislo_domu="Číslo budovy skladu (před kterým stojíš)", 
         heslo="Přístupové heslo do skladu"
     )
     @app_commands.choices(zbran=[
@@ -195,7 +243,7 @@ class NelegalSkladCog(commands.Cog):
         app_commands.Choice(name="Kriss Vector", value="kriss vector"),
         app_commands.Choice(name="Skorpion", value="skorpion")
     ])
-    async def vyrobit_zbran(self, interaction: discord.Interaction, zbran: app_commands.Choice[str], cislo_domu: str, heslo: str):
+    async def vyrobit_zbran_sklad(self, interaction: discord.Interaction, zbran: app_commands.Choice[str], cislo_domu: str, heslo: str):
         if not self.ma_povoleni(interaction):
             return await interaction.response.send_message("❌ Tento příkaz zde nelze použít.", ephemeral=True)
 
@@ -230,8 +278,8 @@ class NelegalSkladCog(commands.Cog):
             {"$set": {"soucastky": soucastky, "hotove_zbrane": hotove_zbrane}}
         )
 
-        embed = discord.Embed(title="🛠️ Výroba úspěšná", color=discord.Color.green())
-        embed.description = f"Ve skladu č. **{cislo_domu}** byla úspěšně sestavena zbraň: **{zbran.name}**!"
+        embed = discord.Embed(title="🛠️ Výroba úspěšná (Ze skladu)", color=discord.Color.green())
+        embed.description = f"Ve skladu č. **{cislo_domu}** byla úspěšně sestavena zbraň: **{zbran.name}** a zůstává tam uložená."
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     # --- 6. POLICEJNÍ RAZIE NA SKLAD (PROVEDENÍ SEARCH WARRANT) ---
@@ -361,7 +409,6 @@ class NelegalSkladCog(commands.Cog):
             return await interaction.response.send_message("❌ Počet musí být alespoň 1.", ephemeral=True)
 
         hrac_id = str(hrac.id)
-        # item.value je přesná textová hodnota z předvolby výše
         pridavane_itemy = [item.value] * pocet
 
         kolekce_hraci.update_one(
@@ -423,6 +470,4 @@ class NelegalSkladCog(commands.Cog):
 # NAHRÁNÍ COGU BOTA
 # ==========================================
 async def setup(bot):
-    # Zde je změněn název třídy, aby se to nekřížilo s tvojí anonymní DarkwebCog
     await bot.add_cog(NelegalSkladCog(bot))
-
