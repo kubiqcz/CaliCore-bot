@@ -7,7 +7,7 @@ import zoneinfo
 # ==========================================
 # NASTAVENÍ KANÁLU
 # ==========================================
-KANAL_DARKWEB_ID = 1394695584669241457 # Jediný kanál, kde příkaz funguje a kam se zprávy posílají
+KANAL_DARKWEB_ID = 1532456282768933006 # Jediný kanál, kde příkaz funguje a kam se zprávy posílají
 
 # --- TŘÍDA PRO FORMULÁŘ ---
 class DarkWebModal(discord.ui.Modal, title='🌐 Šifrované připojení k Dark Webu'):
