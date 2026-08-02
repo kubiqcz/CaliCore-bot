@@ -8,7 +8,7 @@ import datetime
 # NASTAVENÍ ID (DOPLŇ VAŠE ÚDAJE)
 # ==========================================
 ID_MDT_SERVERU = 1453744303691137045
-POVOLENE_SERVERY_ID = [1394695578394558524, ID_MDT_SERVERU] 
+POVOLENE_SERVERY_ID = [1532110413028659452, ID_MDT_SERVERU] 
 
 # Zde doplň ID role "On-Duty", kterou bot policistům přiřadí na MDT serveru
 ID_ROLE_ONDUTY = 1533451480541958255 # <--- DOPLŇ ID ROLE
@@ -36,7 +36,6 @@ HODNOSTI_LASD = [
     "Deputy Sheriff Master", "Deputy Sheriff Bonus II.", "Deputy Sheriff Bonus I.", "Deputy Sheriff"
 ]
 
-# Seznam hodností, které se řadí do kategorie "Supervizoři"
 SUPERVIZORI = [
     "✰✰✰✰ Chief of Police ✰✰✰✰", "✰✰✰ Assistent Chief ✰✰✰", "✰✰ Deputy Chief ✰✰", "✰ Commander ✰", 
     "Captain", "Lieutenant", "Sergeant II", "Sergeant I",
@@ -69,7 +68,7 @@ class SluzbaCog(commands.Cog):
         sbor="Vyber svůj sbor", 
         hodnost="Začni psát a vyber svou hodnost", 
         prijmeni="Tvé příjmení v RP", 
-        odznak="Tvé číslo odznaku (např. 4033)"
+        odznak="Tvé číslo odznaku (např. 105)"
     )
     @app_commands.choices(sbor=[
         app_commands.Choice(name="LAPD", value="LAPD"),
@@ -95,14 +94,13 @@ class SluzbaCog(commands.Cog):
             "nastup": datetime.datetime.now().strftime("%H:%M")
         })
 
-        # Přidání Discord role
         if interaction.guild:
             role = interaction.guild.get_role(ID_ROLE_ONDUTY)
             if role:
                 try:
                     await interaction.user.add_roles(role)
                 except discord.Forbidden:
-                    pass # Bot nemá práva přidávat role
+                    pass
 
         await interaction.response.send_message(f"✅ Úspěšně jsi nastoupil do služby jako **{sbor.value} | {hodnost} {prijmeni} [{odznak}]**.", ephemeral=True)
         await self.aktualizovat_panely()
@@ -119,7 +117,6 @@ class SluzbaCog(commands.Cog):
         if not zaznam:
             return await interaction.response.send_message("❌ Nejsi vedený v aktivní službě.", ephemeral=True)
 
-        # Odebrání Discord role
         if interaction.guild:
             role = interaction.guild.get_role(ID_ROLE_ONDUTY)
             if role:
@@ -135,13 +132,8 @@ class SluzbaCog(commands.Cog):
     async def aktualizovat_panely(self):
         sluzici = list(kolekce_sluzba.find())
         
-        # Roztřídění pro MDT
         supervizori_seznam = []
         jednotky_seznam = []
-        
-        # Počítadla pro hlavní discord
-        pocet_lapd = 0
-        pocet_lasd = 0
 
         for s in sluzici:
             text_zaznamu = f"• **{s['sbor']}** | {s['hodnost']} {s['prijmeni']} [{s['odznak']}] *(Od {s['nastup']})*"
@@ -151,12 +143,7 @@ class SluzbaCog(commands.Cog):
             else:
                 jednotky_seznam.append(text_zaznamu)
 
-            if s['sbor'] == "LAPD":
-                pocet_lapd += 1
-            elif s['sbor'] == "LASD":
-                pocet_lasd += 1
-
-        # --- AKTUALIZACE MDT PANELU (Detailní) ---
+        # --- AKTUALIZACE MDT PANELU (Detailní rozpis) ---
         konfig_mdt = kolekce_config.find_one({"_id": "panel_sluzba_mdt"})
         if konfig_mdt:
             kanal = self.bot.get_channel(konfig_mdt["channel_id"])
@@ -176,17 +163,25 @@ class SluzbaCog(commands.Cog):
                 except discord.NotFound:
                     pass
 
-        # --- AKTUALIZACE HLAVNÍHO PANELU (Pouze počty) ---
+        # --- AKTUALIZACE HLAVNÍHO PANELU (Sloučený celkový počet) ---
         konfig_hlavni = kolekce_config.find_one({"_id": "panel_sluzba_hlavni"})
         if konfig_hlavni:
             kanal_hl = self.bot.get_channel(konfig_hlavni["channel_id"])
             if kanal_hl:
                 try:
                     zprava_hl = await kanal_hl.fetch_message(konfig_hlavni["message_id"])
-                    embed_hl = discord.Embed(title="🚨 Informace o státních složkách", description="Aktuální počty zasahujících jednotek ve městě.", color=discord.Color.dark_blue())
+                    embed_hl = discord.Embed(
+                        title="🚨 Informace o státních složkách", 
+                        description="Aktuální přehled dostupnosti policie ve městě.", 
+                        color=discord.Color.dark_blue()
+                    )
                     
-                    embed_hl.add_field(name="🚓 LAPD", value=f"**{pocet_lapd}** aktivních", inline=True)
-                    embed_hl.add_field(name="🤠 LASD", value=f"**{pocet_lasd}** aktivních", inline=True)
+                    celkovy_pocet = len(sluzici)
+                    embed_hl.add_field(
+                        name="🚔 Počet jednotek ve službě", 
+                        value=f"**{celkovy_pocet}** {'aktivní jednotka' if celkovy_pocet == 1 else ('aktivní jednotky' if 2 <= celkovy_pocet <= 4 else 'aktivních jednotek')}", 
+                        inline=False
+                    )
                     
                     await zprava_hl.edit(embed=embed_hl)
                 except discord.NotFound:
@@ -209,7 +204,7 @@ class SluzbaCog(commands.Cog):
         )
         await self.aktualizovat_panely()
 
-    @app_commands.command(name="setup_onduty_main", description="[Admin] Vytvoří veřejnou tabulku s počty jednotek.")
+    @app_commands.command(name="setup_onduty_main", description="[Admin] Vytvoří veřejnou tabulku s celkovým počtem jednotek.")
     async def setup_main(self, interaction: discord.Interaction):
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message("❌ Nemáš oprávnění.", ephemeral=True)
